@@ -70,7 +70,7 @@ class Ssh:
     key_is_installed = False
 
     # Configuration of the SSH command.
-    ssh_options = "-o StrictHostKeychecking=no -o BatchMode=yes -o PasswordAuthentication=no -o GSSAPIAuthentication=no -o PermitRootLogin=no"
+    ssh_options = "-o StrictHostKeychecking=no -o BatchMode=yes -o PasswordAuthentication=no -o GSSAPIAuthentication=no"
 
     def __init__(self, server, password, mysql_password=None):
         '''
@@ -108,7 +108,7 @@ class Ssh:
         )
 
         # Raise exception if the installation of the cert failed.
-        if (not self._is_sshkey_installed()):
+        if not self._is_sshkey_installed():
             raise SettingsError("Failed to install cert on " + self.server)
 
     def _generate_ssh_keys(self):
@@ -273,7 +273,7 @@ class Ssh:
 
     def _is_sshkey_installed(self):
         '''Check if sshkey is installed on remote server.'''
-        if (self.key_is_installed):
+        if self.key_is_installed:
             return True
 
         p = subprocess.Popen("ssh -T " + self.ssh_options + " -i " + self.ssh_private_key_file + " " +
