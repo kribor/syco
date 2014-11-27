@@ -144,7 +144,7 @@ class Ssh:
         '''Is remote ssh server alive.'''
         return general.is_server_alive(self.server, self.port)
 
-    def ssh_exec(self, command, events={}):
+    def ssh_exec(self, command, events={}, sudo=False):
         '''
         Execute the ssh command.
 
@@ -154,7 +154,7 @@ class Ssh:
         '''
         try:
             #self._ssh_exec(command, events)
-            execute(ssh_exec_fab, command, events)
+            execute(ssh_exec_fab, command, events, sudo)
         except pexpect.TIMEOUT, e:
             app.print_error("Got a timeout from ssh_exec, retry to execute command: " + command + str(e))
             self.ssh_exec(command, events)
