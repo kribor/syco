@@ -29,7 +29,6 @@ __version__ = "1.0.0"
 __status__ = "Production"
 
 import os
-from repr import repr
 import subprocess
 import sys
 import time
@@ -39,6 +38,8 @@ from exception import SettingsError
 import general
 import expect
 import pexpect
+from general import x
+from fabric.api import env, hosts, roles, run, task, runs_once, execute, local
 
 class SSHTerminatedException(Exception):
     '''
@@ -49,6 +50,7 @@ class SSHTerminatedException(Exception):
     * the ssh session is killed.
     * the remote server is rebooted.
     '''
+
 
 class Ssh:
 
@@ -90,7 +92,7 @@ class Ssh:
 
         self._check_alive()
 
-        if (self._is_sshkey_installed()):
+        if self._is_sshkey_installed():
             return
 
         self._generate_ssh_keys()
@@ -110,11 +112,15 @@ class Ssh:
             raise SettingsError("Failed to install cert on " + self.server)
 
     def _generate_ssh_keys(self):
-        if (not os.access(self.ssh_key_dir, os.W_OK)):
+
+        if not os.access(self.ssh_key_dir, os.W_OK):
             os.makedirs(self.ssh_key_dir)
 
         # Create ssh keys on on localhost.
-        if (not os.access(self.ssh_private_key_file, os.R_OK)):
+        # Require presence of private and public key
+        if (not os.access(self.ssh_private_key_file, os.R_OK)) or \
+                (not os.access(self.ssh_public_key_file, os.R_OK)):
+            x("rm %s ; rm %s" % (self.ssh_private_key_file, self.ssh_public_key_file))
             subprocess.Popen('ssh-keygen -t rsa -f ' + self.ssh_private_key_file + ' -N ""', shell=True).communicate()
 
     def _get_public_key(self):
@@ -125,21 +131,20 @@ class Ssh:
 
     def wait_until_alive(self):
         '''Wait until the remote server becomes alive.'''
-        if (not self.is_alive()):
+        if not self.is_alive():
             app.print_verbose("Wait for remote host " + self.server + " to become alive.", new_line=False)
-            while(not self.is_alive()):
-                if (app.options.verbose >= 1):
+            while not self.is_alive():
+                if app.options.verbose >= 1:
                     sys.stdout.write(".")
                     sys.stdout.flush()
                 time.sleep(5)
             app.print_verbose("\n", new_line=False)
 
-
     def is_alive(self):
         '''Is remote ssh server alive.'''
         return general.is_server_alive(self.server, self.port)
 
-    def ssh_exec(self, command, events = {}):
+    def ssh_exec(self, command, events={}):
         '''
         Execute the ssh command.
 
@@ -148,7 +153,8 @@ class Ssh:
 
         '''
         try:
-            self._ssh_exec(command, events)
+            #self._ssh_exec(command, events)
+            execute(ssh_exec_fab, command, events)
         except pexpect.TIMEOUT, e:
             app.print_error("Got a timeout from ssh_exec, retry to execute command: " + command + str(e))
             self.ssh_exec(command, events)
@@ -199,8 +205,8 @@ class Ssh:
         # the output commes. This is for the executed command.
         app.print_verbose("", 2, new_line=False, enable_caption=True)
 
-        index=0
-        while (index <= terminate_event):
+        index = 0
+        while index <= terminate_event:
 
             # Check for strings in keys in the output from the SSH command,
             # also uses print_verbose on all output from the result.
@@ -282,6 +288,23 @@ class Ssh:
             self.key_is_installed = True
 
         return self.key_is_installed
+
+
+@task
+def ssh_exec_fab(command, events, sudo):
+    app.print_verbose("SSH Command on " + env.host + ": " + command)
+
+    # Setting default events
+    if events is None:
+        events = {}
+
+    events["Verify the SYCO master password:"] = app.get_master_password() + "\n"
+
+    if sudo:
+        sudo(command, prompts=events)
+    else:
+        run(command, prompts=events)
+
 
 def scp_from(server, src, dst):
     general.shell_run("scp -r " + server + ":" + src + " " + dst,
