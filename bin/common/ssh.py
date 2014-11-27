@@ -39,7 +39,7 @@ import general
 import expect
 import pexpect
 from general import x
-from fabric.api import env, hosts, roles, run, task, runs_once, execute, local
+from fabric.api import env, settings, roles, run, task, runs_once, execute, local
 
 class SSHTerminatedException(Exception):
     '''
@@ -154,6 +154,7 @@ class Ssh:
         '''
         try:
             #self._ssh_exec(command, events)
+            env.hosts = [self.server]
             execute(ssh_exec_fab, command, events, sudo)
         except pexpect.TIMEOUT, e:
             app.print_error("Got a timeout from ssh_exec, retry to execute command: " + command + str(e))
@@ -300,10 +301,11 @@ def ssh_exec_fab(command, events, sudo):
 
     events["Verify the SYCO master password:"] = app.get_master_password() + "\n"
 
-    if sudo:
-        sudo(command, prompts=events)
-    else:
-        run(command, prompts=events)
+    with settings(prompts=events):
+        if sudo:
+            sudo(command)
+        else:
+            run(command)
 
 
 def scp_from(server, src, dst):
