@@ -155,6 +155,8 @@ class Ssh:
         try:
             #self._ssh_exec(command, events)
             env.hosts = [self.server]
+            env.user = "root"
+            env.password = app.get_root_password()
             execute(ssh_exec_fab, command, events, sudo)
         except pexpect.TIMEOUT, e:
             app.print_error("Got a timeout from ssh_exec, retry to execute command: " + command + str(e))
