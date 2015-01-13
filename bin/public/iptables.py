@@ -176,13 +176,13 @@ def _drop_all():
 
 
 def setup_syco_chains(device=False):
-    '''
+    """
     Setup input/output/forward chains that are used by all syco installed services.
 
     This is so it's easier to remove/rebuild iptables rules for a specific
     service. And easier to trace what rules that are used for a specific service.
 
-    '''
+    """
     app.print_verbose("Create syco input, output, forward chain")
 
     # Input chain
@@ -231,10 +231,12 @@ def setup_multicast_chains():
 
 
 def add_service_chains():
-    '''
+    """
     Rules that will only be added on servers that has a specific service installed.
 
-    '''
+    """
+    #TODO: Opening of service chains should only occur if these services are required by the current host and exist in
+    #      the environment
     add_cobbler_chain()
     add_glassfish_chain()
     add_httpd_chain()
@@ -257,7 +259,6 @@ def create_chains():
     # when debugging is needed.
     app.print_verbose("Create LOGDROP chain.")
     iptables("-N LOGDROP")
-    #iptables("-A LOGDROP -j LOG --log-prefix 'IPT-LOGDROP:'")
     iptables("-A LOGDROP -j DROP")
 
     app.print_verbose("Create allowed tcp chain.")
@@ -269,10 +270,6 @@ def create_chains():
     app.print_verbose("Create allowed udp chain.")
     iptables("-N allowed_udp")
     iptables("-A allowed_udp -p UDP -j ACCEPT")
-    # TODO: Possible to restrict more?
-    #iptables("-A allowed_udp -p UDP --syn -j ACCEPT")
-    #iptables("-A allowed_udp -p UDP -m state --state ESTABLISHED,RELATED -j ACCEPT")
-    iptables("-A allowed_udp -p UDP -j LOGDROP")
 
 
 def _setup_general_rules():
@@ -312,7 +309,8 @@ def setup_bad_tcp_packets():
 
     app.print_verbose("Create bad_tcp_packets chain.")
     iptables("-N bad_tcp_packets")
-    iptables("-A bad_tcp_packets -p tcp --tcp-flags SYN,ACK SYN,ACK -m state --state NEW -j REJECT --reject-with tcp-reset")
+    iptables("-A bad_tcp_packets -p tcp --tcp-flags SYN,ACK SYN,ACK -m state --state NEW -j REJECT "
+             "--reject-with tcp-reset")
 
     # Force SYN checks
     iptables("-A bad_tcp_packets -p tcp ! --syn -m state --state NEW -j LOG --log-prefix 'IPT: New not syn:'")
@@ -349,41 +347,41 @@ def setup_ssh_rules():
 #  #wait 60 seconds if 3 times failed to connect
 #  ################################################################
 #  iptables -I INPUT -p tcp -i eth0 --dport 22 -m state --state NEW -m recent --name sshprobe --set -j ACCEPT
-#  iptables -I INPUT -p tcp -i eth0 --dport 22 -m state --state NEW -m recent --name sshprobe --update --seconds 60 --hitcount 3 --rttl -j LOGDROP
+#  iptables -I INPUT -p tcp -i eth0 --dport 22 -m state --state NEW -m recent --name sshprobe --update --seconds 60 \
+#           --hitcount 3 --rttl -j LOGDROP
 
 
 def setup_dns_resolver_rules():
-    '''
+    """
     Allow this server to communicate with all syco approved dns resolvers.
 
-    '''
+    """
     app.print_verbose("Setup DNS resolver INPUT/OUTPUT rule.")
     for resolver_ip in config.general.get_dns_resolvers().split(" "):
         if resolver_ip.lower() != "none":
-            iptables("-A syco_output -p udp --sport 1024:65535 -d " + resolver_ip + " --dport 53 -m state --state NEW -j allowed_udp")
-            iptables("-A syco_output -p tcp --sport 1024:65535 -d " + resolver_ip + " --dport 53 -m state --state NEW -j allowed_tcp")
-
+            iptables("-A syco_output -p udp --sport 1024:65535 -d " + resolver_ip +
+                     " --dport 53 -m state --state NEW -j allowed_udp")
+            iptables("-A syco_output -p tcp --sport 1024:65535 -d " + resolver_ip +
+                     " --dport 53 -m state --state NEW -j allowed_tcp")
 
 
 def _setup_gpg_rules():
-    '''
+    """
     Allow GPG to talk to keyserver.ubuntu.com:11371
 
-    '''
+    """
     app.print_verbose("Setup GPG output rule.")
     iptables("-A syco_output -p tcp -d keyserver.ubuntu.com --dport 11371 -j allowed_tcp")
 
 
 def setup_installation_server_rules():
-    '''
+    """
     Open http access to the installation server.
 
-    TODO: Move all repos to the install server and harden the iptables.
+    TODO: Move all repos to the install server and harden iptables.
 
-    '''
+    """
     app.print_verbose("Setup http access to installation server.")
-    #ip=config.general.get_installation_server_ip()
-    #iptables("-A syco_output -p tcp -d " + ip + " -m multiport --dports 80,443 -j allowed_tcp")
 
     # Need to have this, until all repos are on the installation server.
     iptables("-A syco_output -p tcp -m multiport --dports 80,443 -j allowed_tcp")
@@ -426,7 +424,7 @@ def del_kvm_chain():
 def add_kvm_chain():
     del_kvm_chain()
 
-    if (not os.path.exists('/etc/init.d/libvirtd')):
+    if not os.path.exists('/etc/init.d/libvirtd'):
         return
 
     app.print_verbose("Add iptables chain for kvm")
@@ -492,7 +490,7 @@ def del_httpd_chain():
 def add_httpd_chain():
     del_httpd_chain()
 
-    if (not os.path.exists('/etc/init.d/httpd')):
+    if not os.path.exists('/etc/init.d/httpd'):
         return
 
     app.print_verbose("Add iptables chain for httpd")
