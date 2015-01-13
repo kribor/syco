@@ -30,8 +30,8 @@ Recommended reading
 
 __author__ = "Kristofer Borgström"
 __copyright__ = "Copyright 2015, The System Console project"
-__maintainer__ = "Kristofer Borgström"
-__credits__ = ["Elis Kullberg, Daniel Lindh, Mattias Hemmingsson"]
+__maintainer__ = "Kristofer Borgström, Elis Kullberg"
+__credits__ = ["Daniel Lindh, Mattias Hemmingsson"]
 __version__ = "1.0.0"
 __status__ = "Test"
 
@@ -47,7 +47,6 @@ import net
 import os
 import version
 import netUtils
-import ipaddr
 import re
 
 iptables = "/sbin/iptables"
@@ -415,6 +414,7 @@ def setup_aliases(conf):
 
     app.print_verbose("Setting up IP aliases")
     install.package("python-ipaddr")
+    import ipaddr
 
     inet_network = ipaddr.IPv4Network(
         conf.get("interfaces", "internet_ip") +
