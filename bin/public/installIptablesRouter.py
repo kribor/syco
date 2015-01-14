@@ -528,7 +528,7 @@ def setup_interfaces(c):
 
         # _setup front-net
         netUtils.setup_bridge("br1", front_ip, front_netmask, front_gw, front_resolver)
-        netUtils.setup_bond("bond1", "br1")setup_dns_resolver_rules
+        netUtils.setup_bond("bond1", "br1")
         netUtils.setup_eth("eth2", "bond1")
         netUtils.setup_eth("eth3", "bond1")
     elif num_of_if == 2:
