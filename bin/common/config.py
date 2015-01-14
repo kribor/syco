@@ -235,9 +235,8 @@ class Config(object):
             Ip list of all dns resolvers that are configured on all servers.
 
             '''
-            resolvers = "{0} {1} {2}".format(
-                self.get_front_resolver_ip(), self.get_back_resolver_ip(),
-                self.get_nameserver_server_ip()
+            resolvers = "{0} {1}".format(
+                self.get_front_resolver_ip(), self.get_back_resolver_ip()
             )
 
             if (limiter != " "):
