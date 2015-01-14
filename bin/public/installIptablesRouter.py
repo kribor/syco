@@ -505,7 +505,7 @@ def setup_interfaces(c):
     back_gw = False
     back_resolver = False
 
-    if (num_of_if >= 4):
+    if num_of_if >= 4:
         # Setup back-net
         netUtils.setup_bridge("br0", back_ip, back_netmask, back_gw, back_resolver)
         netUtils.setup_bond("bond0", "br0")
@@ -517,7 +517,7 @@ def setup_interfaces(c):
         netUtils.setup_bond("bond1", "br1")
         netUtils.setup_eth("eth2", "bond1")
         netUtils.setup_eth("eth3", "bond1")
-    elif (num_of_if == 2):
+    elif num_of_if == 2:
         # Setup back-net
         netUtils.setup_bridge("br0", back_ip, back_netmask, back_gw, back_resolver)
         netUtils.setup_bond("bond0", "br0")
@@ -528,7 +528,7 @@ def setup_interfaces(c):
         netUtils.setup_bond("bond1", "br1")
         netUtils.setup_eth("eth1", "bond1")
     else:
-        raise Exception("To few network interfaces: " + str(num_of_if))
+        raise Exception("Wrong amount of network interfaces (2 or >= 4 allowed): " + str(num_of_if))
 
     x("service network restart")
 
@@ -569,6 +569,9 @@ def setup_temp_io_filters(c):
     # Temporary rules to allow port 80 and 443 out
     # Only access to internal install server at a later date
     allow_tcp_out(dest_ports="80,443", dest_interface=c.interfaces.internet_interface)
+
+    #Temp DNS rules
+    allow_firewall_to_access_external_dns(c)
 
 
 #
