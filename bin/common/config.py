@@ -384,11 +384,11 @@ class Config(object):
             '''The ip of the ossec server.'''
             return self._get_service_ip("ossec")
 
-        '''
+        """
         Get the IP of a service by:
         A) Looking for a general section property called <service-name>.server.ip
         B) Finding front-net IP by host name which is retrieved through a function in this class called: get_<service>_server()
-        '''
+        """
         def _get_service_ip(self, service_name):
 
             service_ip = self.get_option(service_name + ".server.ip", "")
@@ -397,7 +397,7 @@ class Config(object):
                 '''If IP is not configured, try to get IP from guest configuration for this host'''
                 hostname_method = getattr(self, "get_" + service_name + "_server")
                 service_host_name = hostname_method()
-                if not service_host_name:
+                if service_host_name:
                     service_ip = self.host(service_host_name).get_front_ip()
 
             return service_ip
