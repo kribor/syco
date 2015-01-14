@@ -157,7 +157,7 @@ class Config(object):
             self.etc_path = etc_path
             self.usr_path = usr_path
 
-        def get_option(self, option, default_value = None):
+        def get_option(self, option, default_value=None):
             return Config.SycoConfig.get_option(self, "general", option, default_value)
 
         def host(self, hostname):
@@ -255,7 +255,7 @@ class Config(object):
             return self.get_option("resolv.search")
 
         def get_nameserver_server(self):
-            return self.get_option("nameserver.server")
+            return self.get_option("nameserver.server", "")
 
         def get_nameserver_server_ip(self):
 
@@ -397,7 +397,8 @@ class Config(object):
                 '''If IP is not configured, try to get IP from guest configuration for this host'''
                 hostname_method = getattr(self, "get_" + service_name + "_server")
                 service_host_name = hostname_method()
-                service_ip = self.host(service_host_name).get_front_ip()
+                if not service_host_name:
+                    service_ip = self.host(service_host_name).get_front_ip()
 
             return service_ip
 
