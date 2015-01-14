@@ -364,6 +364,20 @@ def setup_specific_forwarding(c, conf):
                     forward_udp(source_interface=c.interfaces.dmz_interface, dest_ports=conf.get(server, option))
                     #Also allow firewall to go out on these ports
                     allow_udp_out(dest_ports=conf.get(server, option), dest_interface=c.interfaces.internet_interface)
+                if option == "allow_tcp_out_ip":
+                    values = conf.get(server, option).split(":")
+                    ip = values[0]
+                    ports = values[1]
+                    forward_tcp(source_interface=c.interfaces.dmz_interface, dest_ip=ip, dest_ports=ports)
+                    #Also allow firewall to go out on these ports
+                    allow_tcp_out(dest_ip=ip, dest_ports=ports, dest_interface=c.interfaces.internet_interface)
+                elif option == "allow_udp_out_ip":
+                    values = conf.get(server, option).split(":")
+                    ip = values[0]
+                    ports = values[1]
+                    forward_udp(source_interface=c.interfaces.dmz_interface, dest_ip=ip, dest_ports=ports)
+                    #Also allow firewall to go out on these ports
+                    allow_udp_out(dest_ip=ip, dest_ports=ports, dest_interface=c.interfaces.internet_interface)
 
         else:
             for option in conf.options(server):
@@ -579,11 +593,6 @@ def setup_temp_io_filters(c):
     # Temporary rules to allow SSH in/out
     # Only ssh from bounce server at a later date
     allow_tcp_in(dest_ports="22", dest_ip=c.interfaces.dmz_ip)
-
-    # Temporary rules to allow port 80 and 443 out
-    # Only access to internal install server at a later date
-    allow_tcp_out(dest_ports="80,443", dest_interface=c.interfaces.internet_interface)
-    forward_tcp(dest_interface=c.interfaces.internet_interface, dest_ports="80,443")
 
     #Temp DNS rules
     allow_firewall_to_access_external_dns(c)
