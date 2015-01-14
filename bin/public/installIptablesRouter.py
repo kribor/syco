@@ -352,55 +352,69 @@ def setup_specific_forwarding(c, conf):
     app.print_verbose("Setting up forwarding chain")
 
     for server in conf.sections():
-        for option in conf.options(server):
-            # Nice one liner - try: globals()[option]("parameters") - basically function pointers in python
-            # To do - proper handling of function arguments using my data-structure
-            if option == "allow_tcp_in":
-                forward_tcp(dest_interface=c.interfaces.dmz_interface, dest_ip=conf.get(server, "dmz_ip"),
-                            dest_ports=conf.get(server,option))
-                dnat_tcp(dest_ip=conf.get(server, "internet_ip"), dest_ports=conf.get(server, option),
-                         dnat_ip=conf.get(server, "dmz_ip"))
-            elif option == "allow_udp_in":
-                forward_udp(dest_interface=c.interfaces.dmz_interface, dest_ip=conf.get(server, "dmz_ip"),
-                            dest_ports=conf.get(server,option))
-                dnat_udp(dest_ip=conf.get(server, "internet_ip"), dest_ports=conf.get(server, option),
-                         dnat_ip=conf.get(server, "dmz_ip"))
-            elif option == "allow_icmp_in":
-                forward_icmp(dest_interface=c.interfaces.dmz_interface, dest_ip=conf.get(server, "dmz_ip"))
-            elif option == "allow_tcp_out":
-                forward_tcp(source_interface=c.interfaces.dmz_interface, source_ip=conf.get(server, "dmz_ip"),
-                            dest_ports=conf.get(server, option))
-                # If host has a internet_ip it should leave the firewall on that
-                # ip or else use the default public ip for the fw, which is
-                # defined in postrouting().
-                if conf.has_option(server, "internet_ip"):
-                    internet_ip = conf.get(server, "internet_ip")
-                    snat_tcp(
-                        #source_interface=c.interfaces.dmz_interface,
-                        source_ip=conf.get(server, "dmz_ip"),
-                        dest_interface=c.interfaces.internet_interface,
-                        dest_ports=conf.get(server, option),
-                        snat_ip=internet_ip
-                    )
 
-            elif option == "allow_udp_out":
-                forward_udp(source_interface=c.interfaces.dmz_interface, source_ip=conf.get(server, "dmz_ip"),
-                            dest_ports=conf.get(server, option))
-                # If host has a internet_ip it should leave the firewall on that
-                # ip or else use the default public ip for the fw, which is
-                # defined in postrouting().
-                if conf.has_option(server, "internet_ip"):
-                    internet_ip = conf.get(server, "internet_ip")
-                    snat_udp(
-                        #source_interface=c.interfaces.dmz_interface,
-                        source_ip=conf.get(server, "dmz_ip"),
-                        dest_interface=c.interfaces.internet_interface,
-                        dest_ports=conf.get(server, option),
-                        snat_ip=internet_ip
-                    )
+        if server.lower() == "all":
+            for option in conf.options(server):
+                #Only outbound rules are allowed for ALL
+                if option == "allow_tcp_out":
+                    forward_tcp(source_interface=c.interfaces.dmz_interface, dest_ports=conf.get(server, option))
+                    #Also allow firewall to go out on these ports
+                    allow_tcp_out(dest_ports=conf.get(server, option), dest_interface=c.interfaces.internet_interface)
+                elif option == "allow_udp_out":
+                    forward_udp(source_interface=c.interfaces.dmz_interface, dest_ports=conf.get(server, option))
+                    #Also allow firewall to go out on these ports
+                    allow_udp_out(dest_ports=conf.get(server, option), dest_interface=c.interfaces.internet_interface)
 
-            elif option == "allow_icmp_out":
-                forward_icmp(source_interface=c.interfaces.dmz_interface, source_ip=conf.get(server, "dmz_ip"))
+        else:
+            for option in conf.options(server):
+                # Nice one liner - try: globals()[option]("parameters") - basically function pointers in python
+                # To do - proper handling of function arguments using my data-structure
+                if option == "allow_tcp_in":
+                    forward_tcp(dest_interface=c.interfaces.dmz_interface, dest_ip=conf.get(server, "dmz_ip"),
+                                dest_ports=conf.get(server,option))
+                    dnat_tcp(dest_ip=conf.get(server, "internet_ip"), dest_ports=conf.get(server, option),
+                             dnat_ip=conf.get(server, "dmz_ip"))
+                elif option == "allow_udp_in":
+                    forward_udp(dest_interface=c.interfaces.dmz_interface, dest_ip=conf.get(server, "dmz_ip"),
+                                dest_ports=conf.get(server,option))
+                    dnat_udp(dest_ip=conf.get(server, "internet_ip"), dest_ports=conf.get(server, option),
+                             dnat_ip=conf.get(server, "dmz_ip"))
+                elif option == "allow_icmp_in":
+                    forward_icmp(dest_interface=c.interfaces.dmz_interface, dest_ip=conf.get(server, "dmz_ip"))
+                elif option == "allow_tcp_out":
+                    forward_tcp(source_interface=c.interfaces.dmz_interface, source_ip=conf.get(server, "dmz_ip"),
+                                dest_ports=conf.get(server, option))
+                    # If host has a internet_ip it should leave the firewall on that
+                    # ip or else use the default public ip for the fw, which is
+                    # defined in postrouting().
+                    if conf.has_option(server, "internet_ip"):
+                        internet_ip = conf.get(server, "internet_ip")
+                        snat_tcp(
+                            #source_interface=c.interfaces.dmz_interface,
+                            source_ip=conf.get(server, "dmz_ip"),
+                            dest_interface=c.interfaces.internet_interface,
+                            dest_ports=conf.get(server, option),
+                            snat_ip=internet_ip
+                        )
+
+                elif option == "allow_udp_out":
+                    forward_udp(source_interface=c.interfaces.dmz_interface, source_ip=conf.get(server, "dmz_ip"),
+                                dest_ports=conf.get(server, option))
+                    # If host has a internet_ip it should leave the firewall on that
+                    # ip or else use the default public ip for the fw, which is
+                    # defined in postrouting().
+                    if conf.has_option(server, "internet_ip"):
+                        internet_ip = conf.get(server, "internet_ip")
+                        snat_udp(
+                            #source_interface=c.interfaces.dmz_interface,
+                            source_ip=conf.get(server, "dmz_ip"),
+                            dest_interface=c.interfaces.internet_interface,
+                            dest_ports=conf.get(server, option),
+                            snat_ip=internet_ip
+                        )
+
+                elif option == "allow_icmp_out":
+                    forward_icmp(source_interface=c.interfaces.dmz_interface, source_ip=conf.get(server, "dmz_ip"))
 
 
 def setup_aliases(conf):
@@ -514,7 +528,7 @@ def setup_interfaces(c):
 
         # _setup front-net
         netUtils.setup_bridge("br1", front_ip, front_netmask, front_gw, front_resolver)
-        netUtils.setup_bond("bond1", "br1")
+        netUtils.setup_bond("bond1", "br1")setup_dns_resolver_rules
         netUtils.setup_eth("eth2", "bond1")
         netUtils.setup_eth("eth3", "bond1")
     elif num_of_if == 2:
@@ -569,6 +583,7 @@ def setup_temp_io_filters(c):
     # Temporary rules to allow port 80 and 443 out
     # Only access to internal install server at a later date
     allow_tcp_out(dest_ports="80,443", dest_interface=c.interfaces.internet_interface)
+    forward_tcp(dest_interface=c.interfaces.internet_interface, dest_ports="80,443")
 
     #Temp DNS rules
     allow_firewall_to_access_external_dns(c)
