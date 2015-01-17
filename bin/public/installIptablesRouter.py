@@ -364,14 +364,14 @@ def setup_specific_forwarding(c, conf):
                     forward_udp(source_interface=c.interfaces.dmz_interface, dest_ports=conf.get(server, option))
                     #Also allow firewall to go out on these ports
                     allow_udp_out(dest_ports=conf.get(server, option), dest_interface=c.interfaces.internet_interface)
-                if option == "allow_tcp_out_ip":
+                if option.startswith("allow_tcp_out_ip"):
                     values = conf.get(server, option).split(":")
                     ip = values[0]
                     ports = values[1]
                     forward_tcp(source_interface=c.interfaces.dmz_interface, dest_ip=ip, dest_ports=ports)
                     #Also allow firewall to go out on these ports
                     allow_tcp_out(dest_ip=ip, dest_ports=ports, dest_interface=c.interfaces.internet_interface)
-                elif option == "allow_udp_out_ip":
+                elif option.startswith("allow_udp_out_ip"):
                     values = conf.get(server, option).split(":")
                     ip = values[0]
                     ports = values[1]
