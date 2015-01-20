@@ -364,7 +364,7 @@ def setup_specific_forwarding(c, conf):
                     forward_udp(source_interface=c.interfaces.dmz_interface, dest_ports=conf.get(server, option))
                     #Also allow firewall to go out on these ports
                     allow_udp_out(dest_ports=conf.get(server, option), dest_interface=c.interfaces.internet_interface)
-                if option.startswith("allow_tcp_out_ip"):
+                elif option.startswith("allow_tcp_out_ip"):
                     values = conf.get(server, option).split(":")
                     ip = values[0]
                     ports = values[1]
@@ -388,6 +388,22 @@ def setup_specific_forwarding(c, conf):
                                 dest_ports=conf.get(server,option))
                     dnat_tcp(dest_ip=conf.get(server, "internet_ip"), dest_ports=conf.get(server, option),
                              dnat_ip=conf.get(server, "dmz_ip"))
+                elif option.startswith("allow_tcp_in_ip"):
+                    values = conf.get(server, option).split(":")
+                    ip = values[0]
+                    ports = values[1]
+
+                    # If not in FW
+                    forward_tcp(source_ip=ip, dest_interface=c.interfaces.dmz_interface,
+                                dest_ip=conf.get(server, "dmz_ip"), dest_ports=ports)
+
+                    #If in FW
+                    allow_tcp_out(source_ip=ip, dest_interface=c.interfaces.internet_interface, dest_ip=ip,
+                                  dest_ports=ports)
+
+                    dnat_tcp(dest_ip=conf.get(server, "internet_ip"), dest_ports=ports,
+                             dnat_ip=conf.get(server, "dmz_ip"))
+                    
                 elif option == "allow_udp_in":
                     forward_udp(dest_interface=c.interfaces.dmz_interface, dest_ip=conf.get(server, "dmz_ip"),
                                 dest_ports=conf.get(server,option))
@@ -719,7 +735,7 @@ def dnat_all(table=False, source_ip=False, dest_ip=False, source_interface=False
 
 def dnat_tcp(table=False, source_ip=False, dest_ip=False, source_interface=False, source_ports=False, dest_ports=False,
              dest_interface=False, state=False, next_chain="DNAT", dnat_ip=False):
-    dnat_command = _build_iptables_command("nat", source_ip, dest_ip, "PREROUTING", "tcp",source_interface,
+    dnat_command = _build_iptables_command("nat", source_ip, dest_ip, "PREROUTING", "tcp", source_interface,
                                            source_ports, dest_ports, dest_interface, state, next_chain, dnat_ip)
     x(dnat_command)
 
