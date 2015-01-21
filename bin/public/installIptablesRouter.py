@@ -363,23 +363,32 @@ def setup_specific_forwarding(c, conf):
                             #Host was specified, only allow traffic to this host
                             forward_tcp(source_interface=c.interfaces.dmz_interface, dest_ports=setting.get('port'),
                                         dest_ip=setting.get('host'))
-                            allow_tcp_out(dest_ports=setting.get('port'), dest_ip=setting.get('host'))
+                            #Also allow in FW itself
+                            allow_tcp_out(dest_interface=c.interfaces.internet_interface,
+                                          dest_ports=setting.get('port'), dest_ip=setting.get('host'))
                         else:
                             #No host, open up port to all hosts
                             forward_tcp(source_interface=c.interfaces.dmz_interface, dest_ports=setting.get('port'))
+                            #Also allow in FW itself
                             allow_tcp_out(dest_ports=setting.get('port'))
                         #The secondary port has no meaning in this context
-                elif option == "allow_udp_out":
-                    forward_udp(source_interface=c.interfaces.dmz_interface, dest_ports=conf.get(server, option))
-                    #Also allow firewall to go out on these ports
-                    allow_udp_out(dest_ports=conf.get(server, option), dest_interface=c.interfaces.internet_interface)
-                elif option.startswith("allow_udp_out_ip"):
-                    values = conf.get(server, option).split(":")
-                    ip = values[0]
-                    ports = values[1]
-                    forward_udp(source_interface=c.interfaces.dmz_interface, dest_ip=ip, dest_ports=ports)
-                    #Also allow firewall to go out on these ports
-                    allow_udp_out(dest_ip=ip, dest_ports=ports, dest_interface=c.interfaces.internet_interface)
+                elif option.startswith("allow_udp_out"):
+                    settings = _parse_ip_and_port_setting(conf.get(server, option))
+                    for setting in settings:
+                        if setting.get('host'):
+                            #Host was specified, only allow traffic to this host
+                            forward_udp(source_interface=c.interfaces.dmz_interface, dest_ports=setting.get('port'),
+                                        dest_ip=setting.get('host'))
+                            #Also allow in FW itself
+                            allow_udp_out(dest_interface=c.interfaces.internet_interface,
+                                          dest_ports=setting.get('port'), dest_ip=setting.get('host'))
+                        else:
+                            #No host, open up port to all hosts
+                            forward_udp(source_interface=c.interfaces.dmz_interface, dest_ports=setting.get('port'))
+                            #Also allow in FW itself
+                            allow_udp_out(dest_interface=c.interfaces.internet_interface,
+                                          dest_ports=setting.get('port'))
+                        #The secondary port has no meaning in this context
 
         else:
             for option in conf.options(server):
