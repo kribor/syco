@@ -376,34 +376,44 @@ def setup_specific_forwarding(c, conf):
         else:
             #Process rules for individual hosts
             for option in conf.options(server):
-                # Nice one liner - try: globals()[option]("parameters") - basically function pointers in python
-                # To do - proper handling of function arguments using my data-structure
-                if option == "allow_tcp_in":
-                    forward_tcp(dest_interface=c.interfaces.dmz_interface, dest_ip=conf.get(server, "dmz_ip"),
-                                dest_ports=conf.get(server,option))
-                    dnat_tcp(dest_ip=conf.get(server, "internet_ip"), dest_ports=conf.get(server, option),
-                             dnat_ip=conf.get(server, "dmz_ip"))
-                elif option.startswith("allow_tcp_in_ip"):
-                    values = conf.get(server, option).split(":")
-                    ip = values[0]
-                    ports = values[1]
 
-                    # If not in FW
-                    forward_tcp(source_ip=ip, dest_interface=c.interfaces.dmz_interface,
-                                dest_ip=conf.get(server, "dmz_ip"), dest_ports=ports)
+                dmz_ip = conf.get(server, "dmz_ip")
+                internet_ip = conf.get(server, "internet_ip")
 
-                    #If in FW
-                    allow_tcp_out(source_ip=ip, dest_interface=c.interfaces.internet_interface, dest_ip=ip,
-                                  dest_ports=ports)
+                if option.startswith("allow_tcp_in"):
+                    settings = _parse_ip_and_port_setting(conf.get(server, option))
 
-                    dnat_tcp(dest_ip=conf.get(server, "internet_ip"), dest_ports=ports,
-                             dnat_ip=conf.get(server, "dmz_ip"))
+                    for setting in settings:
+                        #Determine forwarding port, DNAT target and source filter IP
+                        f_port = setting.get("port")
+                        dnat_target = dmz_ip
+                        source = setting.get("host")
+
+                        if setting.get("secondary_port"):
+                            f_port = setting.get("secondary_port")
+                            dnat_target += ":" + f_port
+
+                        forward_tcp(dest_interface=c.interfaces.dmz_interface, dest_ip=dmz_ip,
+                                    dest_ports=f_port, source_ip=source)
+
+                        dnat_tcp(dest_ip=internet_ip, dest_ports=setting.get('port'),
+                                 dnat_ip=dnat_target, source_ip=source)
                     
-                elif option == "allow_udp_in":
-                    forward_udp(dest_interface=c.interfaces.dmz_interface, dest_ip=conf.get(server, "dmz_ip"),
-                                dest_ports=conf.get(server,option))
-                    dnat_udp(dest_ip=conf.get(server, "internet_ip"), dest_ports=conf.get(server, option),
-                             dnat_ip=conf.get(server, "dmz_ip"))
+                elif option.startswith("allow_udp_in"):
+                    for setting in settings:
+                        #Determine forwarding port, DNAT target and source filter IP
+                        f_port = setting.get("port")
+                        dnat_target = dmz_ip
+                        source = setting.get("host")
+
+                        if setting.get("secondary_port"):
+                            f_port = setting.get("secondary_port")
+                            dnat_target += ":" + f_port
+
+                        forward_udp(dest_interface=c.interfaces.dmz_interface, dest_ip=dmz_ip,
+                                    dest_ports=f_port, source_ip=source)
+                        dnat_udp(dest_ip=internet_ip, dest_ports=setting.get('port'), dnat_ip=dnat_target,
+                                 source_ip=source)
                 elif option == "allow_icmp_in":
                     forward_icmp(dest_interface=c.interfaces.dmz_interface, dest_ip=conf.get(server, "dmz_ip"))
                 elif option == "allow_tcp_out":
