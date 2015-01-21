@@ -48,7 +48,6 @@ import os
 import version
 import netUtils
 import re
-from contextlib import suppress
 
 iptables = "/sbin/iptables"
 
