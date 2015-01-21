@@ -378,9 +378,14 @@ def setup_specific_forwarding(c, conf):
             for option in conf.options(server):
 
                 #If settings don't exist, that's ok at this point
-                with suppress(ConfigParser.NoOptionError):
+                try:
                     dmz_ip = conf.get(server, "dmz_ip")
+                except ConfigParser.NoOptionError:
+                    pass
+                try:
                     internet_ip = conf.get(server, "internet_ip")
+                except ConfigParser.NoOptionError:
+                    pass
 
                 if option.startswith("allow_tcp_in"):
                     settings = _parse_ip_and_port_setting(conf.get(server, option))
