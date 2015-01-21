@@ -134,19 +134,6 @@ def install_main_firewall(args):
 
     version_obj.mark_executed
 
-
-def allow_clients_to_access_external_dns(c):
-    """
-    Could potentially be inactivated once dns-server is installed and running
-    """
-    dns_list = c.dns.primary_dns.replace(" ","").split(',')
-    for dns in dns_list:
-        forward_tcp(source_interface=c.interfaces.dmz_interface, dest_ip=dns,
-            source_ports="53,1024:65535", dest_ports="53", state="NEW", next_chain="allowed_tcp")
-        forward_udp(source_interface=c.interfaces.dmz_interface, dest_ip=dns,
-            source_ports="53,1024:65535", dest_ports="53", state="NEW", next_chain="allowed_udp")
-
-
 def allow_firewall_to_access_external_dns(c):
     """
     Could potentially be inactivated once dns-server is installed and running
@@ -332,10 +319,6 @@ def setup_forwarding(c,conf):
 
     app.print_verbose("Setting up forward chain")
 
-    # Temporary rule to allow DNS access
-    # Only access to external dns at a later date
-    allow_clients_to_access_external_dns(c)
-
     setup_specific_forwarding(c, conf)
 
     # DMZ are allowed to access DMZ
@@ -391,6 +374,7 @@ def setup_specific_forwarding(c, conf):
                         #The secondary port has no meaning in this context
 
         else:
+            #Process rules for individual hosts
             for option in conf.options(server):
                 # Nice one liner - try: globals()[option]("parameters") - basically function pointers in python
                 # To do - proper handling of function arguments using my data-structure
@@ -621,8 +605,6 @@ def setup_temp_io_filters(c):
     # Only ssh from bounce server at a later date
     allow_tcp_in(dest_ports="22", dest_ip=c.interfaces.dmz_ip)
 
-    #Temp DNS rules
-    allow_firewall_to_access_external_dns(c)
 
 
 #
