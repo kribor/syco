@@ -41,7 +41,6 @@ from scopen import scOpen
 
 from general import x
 import app
-import collections
 import general
 import install
 import net
@@ -49,6 +48,7 @@ import os
 import version
 import netUtils
 import re
+from contextlib import suppress
 
 iptables = "/sbin/iptables"
 
@@ -377,8 +377,10 @@ def setup_specific_forwarding(c, conf):
             #Process rules for individual hosts
             for option in conf.options(server):
 
-                dmz_ip = conf.get(server, "dmz_ip")
-                internet_ip = conf.get(server, "internet_ip")
+                #If settings don't exist, that's ok at this point
+                with suppress(ConfigParser.NoOptionError):
+                    dmz_ip = conf.get(server, "dmz_ip")
+                    internet_ip = conf.get(server, "internet_ip")
 
                 if option.startswith("allow_tcp_in"):
                     settings = _parse_ip_and_port_setting(conf.get(server, option))
