@@ -41,6 +41,7 @@ from scopen import scOpen
 
 from general import x
 import app
+import collections
 import general
 import install
 import net
@@ -352,25 +353,27 @@ def setup_specific_forwarding(c, conf):
     app.print_verbose("Setting up forwarding chain")
 
     for server in conf.sections():
-
         if server.lower() == "all":
             for option in conf.options(server):
                 #Only outbound rules are allowed for ALL
-                if option == "allow_tcp_out":
-                    forward_tcp(source_interface=c.interfaces.dmz_interface, dest_ports=conf.get(server, option))
-                    #Also allow firewall to go out on these ports
-                    allow_tcp_out(dest_ports=conf.get(server, option), dest_interface=c.interfaces.internet_interface)
+                if option.startswith("allow_tcp_out"):
+                    settings = _parse_ip_and_port_setting(conf.get(server, option))
+                    for setting in settings:
+                        if setting.get('host'):
+                            #Host was specified, only allow traffic to this host
+                            forward_tcp(source_interface=c.interfaces.dmz_interface, dest_ports=setting.get('port'),
+                                        dest_ip=setting.get('host'))
+                            allow_tcp_out(source_interface=c.interfaces.dmz_interface, dest_ports=setting.get('port'),
+                                          dest_ip=setting.get('host'))
+                        else:
+                            #No host, open up port to all hosts
+                            forward_tcp(source_interface=c.interfaces.dmz_interface, dest_ports=setting.get('port'))
+                            allow_tcp_out(source_interface=c.interfaces.dmz_interface, dest_ports=setting.get('port'))
+                        #The secondary port has no meaning in this context
                 elif option == "allow_udp_out":
                     forward_udp(source_interface=c.interfaces.dmz_interface, dest_ports=conf.get(server, option))
                     #Also allow firewall to go out on these ports
                     allow_udp_out(dest_ports=conf.get(server, option), dest_interface=c.interfaces.internet_interface)
-                elif option.startswith("allow_tcp_out_ip"):
-                    values = conf.get(server, option).split(":")
-                    ip = values[0]
-                    ports = values[1]
-                    forward_tcp(source_interface=c.interfaces.dmz_interface, dest_ip=ip, dest_ports=ports)
-                    #Also allow firewall to go out on these ports
-                    allow_tcp_out(dest_ip=ip, dest_ports=ports, dest_interface=c.interfaces.internet_interface)
                 elif option.startswith("allow_udp_out_ip"):
                     values = conf.get(server, option).split(":")
                     ip = values[0]
@@ -818,6 +821,54 @@ def _build_iptables_command(table=False, source_ip=False, dest_ip=False, chain=F
     return command
 
 
+def _parse_ip_and_port_setting(settings):
+    """
+    Parse a string with a comma-separated list of ip and port settings.
+
+    Syntax: [ip/network/host name:]primary-port[->secondary-port]
+
+    For example:
+    8.8.8.8:53           # Can be used with allow_tcp_out to allow port 53 to google DNS
+    80,443               # Can be used with allow_tcp_in to allow web access to a web server
+    80->8080,443->8443   # Can be used with allow_tcp_in to translate incoming port 80 traffic to an internal port 8080
+                         # AND 443 to 8443
+
+    Returns a list of dicts with the following possible keys:
+    - port
+    - host
+    - secondary_port
+    """
+
+    results = []
+    for setting in settings.split(","):
+        result = {}
+
+        host_and_ip = setting.split(":")
+        #Port is first part assuming if no IP specified
+        port_section = host_and_ip[0]
+        if len(host_and_ip) == 2:
+            #A host name/network/IP was specified
+            result['host'] = host_and_ip[0]
+            port_section = host_and_ip[1]
+        elif len(host_and_ip) > 2:
+            app.print_error("Unexpected number of colon separated sections in setting: %s, skipping!" % setting)
+            continue
+
+        ports = port_section.split("->")
+
+        result['port'] = ports[0]
+
+        if len(ports) == 2:
+            result['secondary_port'] = ports[1]
+        elif len(ports) > 2:
+            app.print_error("Unexpected number of \"->\" separated port sections in setting: %s, skipping!" % setting)
+            continue
+
+        results.append(result)
+
+    return results
+
+
 # TODO: Set a good name and move to a better place
 def _set_config_property(file_name, search_exp, replace_exp, add_if_not_exist=True):
     """
@@ -858,6 +909,7 @@ def _set_config_property(file_name, search_exp, replace_exp, add_if_not_exist=Tr
 def _set_config_property2(file_name, replace_exp):
     search_exp = r".*" + re.escape(replace_exp) + r".*"
     _set_config_property(file_name, search_exp, replace_exp)
+
 
 class ConfigBranch(object):
     '''
