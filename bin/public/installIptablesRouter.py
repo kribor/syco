@@ -363,12 +363,11 @@ def setup_specific_forwarding(c, conf):
                             #Host was specified, only allow traffic to this host
                             forward_tcp(source_interface=c.interfaces.dmz_interface, dest_ports=setting.get('port'),
                                         dest_ip=setting.get('host'))
-                            allow_tcp_out(source_interface=c.interfaces.dmz_interface, dest_ports=setting.get('port'),
-                                          dest_ip=setting.get('host'))
+                            allow_tcp_out(dest_ports=setting.get('port'), dest_ip=setting.get('host'))
                         else:
                             #No host, open up port to all hosts
                             forward_tcp(source_interface=c.interfaces.dmz_interface, dest_ports=setting.get('port'))
-                            allow_tcp_out(source_interface=c.interfaces.dmz_interface, dest_ports=setting.get('port'))
+                            allow_tcp_out(dest_ports=setting.get('port'))
                         #The secondary port has no meaning in this context
                 elif option == "allow_udp_out":
                     forward_udp(source_interface=c.interfaces.dmz_interface, dest_ports=conf.get(server, option))
