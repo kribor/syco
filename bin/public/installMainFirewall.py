@@ -134,17 +134,6 @@ def install_main_firewall(args):
 
     version_obj.mark_executed
 
-def allow_firewall_to_access_external_dns(c):
-    """
-    Could potentially be inactivated once dns-server is installed and running
-    """
-    dns_list = c.dns.primary_dns.replace(" ", "").split(',')
-    for dns in dns_list:
-        allow_tcp_out(dest_interface=c.interfaces.internet_interface, dest_ip=dns,
-            source_ports="1024:65535", dest_ports="53", state="NEW", next_chain="allowed_tcp")
-        allow_udp_out(dest_interface=c.interfaces.internet_interface, dest_ip=dns,
-            source_ports="1024:65535", dest_ports="53", state="NEW", next_chain="allowed_udp")
-
 
 def allow_established():
     """
@@ -606,7 +595,6 @@ def setup_io_filters(c):
     syco_iptables.add_service_chains()
     syco_iptables.setup_icmp_chains()
     syco_iptables.setup_installation_server_rules()
-    syco_iptables.setup_dns_resolver_rules()
 
 
 def setup_temp_io_filters(c):
