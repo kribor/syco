@@ -122,6 +122,7 @@ def install_main_firewall(args):
 
     # Setup DNAT/SNAT & forward chain filtering
     setup_forwarding(c, conf)
+    process_allow_rules(c, conf)
     setup_source_nat(c)
 
     # Close global filters log packets that fell through
@@ -317,14 +318,11 @@ def setup_forwarding(c,conf):
     """
 
     app.print_verbose("Setting up forward chain")
-
-    setup_specific_forwarding(c, conf)
-
     # DMZ are allowed to access DMZ
     forward_all(source_interface=c.interfaces.dmz_interface, dest_interface=c.interfaces.dmz_interface)
 
 
-def setup_specific_forwarding(c, conf):
+def process_allow_rules(c, conf):
     """
     Parse through config file and set up forwarding for all hosts that should
     be accessible on a public IP, or need access to external services on a
@@ -332,51 +330,19 @@ def setup_specific_forwarding(c, conf):
     DNAT.
 
     """
-    app.print_verbose("Setting up forwarding chain")
+    app.print_verbose("Processing allow rules")
 
     for server in conf.sections():
+        all_rule = False
         if server.lower() == "all":
-            for option in conf.options(server):
-                #Only outbound rules are allowed for ALL
-                if option.startswith("allow_tcp_out"):
-                    settings = _parse_ip_and_port_setting(conf.get(server, option))
-                    for setting in settings:
-                        if setting.get('host'):
-                            #Host was specified, only allow traffic to this host
-                            forward_tcp(source_interface=c.interfaces.dmz_interface, dest_ports=setting.get('port'),
-                                        dest_ip=setting.get('host'))
-                            #Also allow in FW itself
-                            allow_tcp_out(dest_interface=c.interfaces.internet_interface,
-                                          dest_ports=setting.get('port'), dest_ip=setting.get('host'))
-                        else:
-                            #No host, open up port to all hosts
-                            forward_tcp(source_interface=c.interfaces.dmz_interface, dest_ports=setting.get('port'))
-                            #Also allow in FW itself
-                            allow_tcp_out(dest_ports=setting.get('port'))
-                        #The secondary port has no meaning in this context
-                elif option.startswith("allow_udp_out"):
-                    settings = _parse_ip_and_port_setting(conf.get(server, option))
-                    for setting in settings:
-                        if setting.get('host'):
-                            #Host was specified, only allow traffic to this host
-                            forward_udp(source_interface=c.interfaces.dmz_interface, dest_ports=setting.get('port'),
-                                        dest_ip=setting.get('host'))
-                            #Also allow in FW itself
-                            allow_udp_out(dest_interface=c.interfaces.internet_interface,
-                                          dest_ports=setting.get('port'), dest_ip=setting.get('host'))
-                        else:
-                            #No host, open up port to all hosts
-                            forward_udp(source_interface=c.interfaces.dmz_interface, dest_ports=setting.get('port'))
-                            #Also allow in FW itself
-                            allow_udp_out(dest_interface=c.interfaces.internet_interface,
-                                          dest_ports=setting.get('port'))
-                        #The secondary port has no meaning in this context
+            all_rule = True
 
-        else:
-            #Process rules for individual hosts
-            for option in conf.options(server):
+        for option in conf.options(server):
 
-                #If settings don't exist, that's ok at this point
+            #Only process allow rules further here.
+            if option.startswith("allow_"):
+                #Retrieve and parse settings for processing allow rules.
+                #If dmz and internet_ip settings don't exist, that's ok at this point
                 try:
                     dmz_ip = conf.get(server, "dmz_ip")
                 except ConfigParser.NoOptionError:
@@ -386,89 +352,109 @@ def setup_specific_forwarding(c, conf):
                 except ConfigParser.NoOptionError:
                     pass
 
-                if option.startswith("allow_tcp_in"):
-                    settings = _parse_ip_and_port_setting(conf.get(server, option))
+                if all_rule:
+                    #DMZ and intenet IP makes no sense for "all", make sure it's not set
+                    dmz_ip = False
+                    internet_ip = False
 
-                    for setting in settings:
-                        #Determine forwarding port, DNAT target and source filter IP
-                        f_port = setting.get("port")
+                #Check if this config section is the firewall itself by checking dmz of firewall matches that of this
+                # section
+                server_is_fw = False
+                if c.interfaces.dmz_ip == dmz_ip:
+                    server_is_fw = True
+
+                settings = _parse_ip_and_port_setting(conf.get(server, option))
+                for setting in settings:
+                    port = setting.get("port")
+                    host = setting.get("host")
+                    secondary_port = setting.get("secondary_port")
+
+                    if option.startswith("allow_tcp_out"):
+
+                        if all_rule or server_is_fw:
+                            allow_tcp_out(dest_interface=c.interfaces.internet_interface, dest_ports=port,
+                                          dest_ip=host)
+
+                        if not server_is_fw:
+                            forward_tcp(source_interface=c.interfaces.dmz_interface, source_ip=dmz_ip,
+                                        dest_ports=port, dest_ip=host)
+
+                            # If host has a internet_ip it should leave the firewall on that
+                            # ip or else use the default public ip for the fw, which is
+                            # defined in postrouting().
+                            if internet_ip:
+                                snat_tcp(
+                                    source_ip=dmz_ip,
+                                    dest_interface=c.interfaces.internet_interface,
+                                    dest_ports=port,
+                                    snat_ip=internet_ip
+                                )
+
+                    elif option.startswith("allow_udp_out"):
+
+                        if all_rule or server_is_fw:
+                            allow_udp_out(dest_interface=c.interfaces.internet_interface, dest_ports=port,
+                                          dest_ip=setting.get('host'))
+
+                        if not server_is_fw:
+                            forward_udp(source_interface=c.interfaces.dmz_interface, source_ip=dmz_ip,
+                                        dest_ports=port, dest_ip=host)
+
+                            # If host has a internet_ip it should leave the firewall on that
+                            # ip or else use the default public ip for the fw, which is
+                            # defined in postrouting().
+                            if internet_ip:
+                                snat_udp(
+                                    source_ip=dmz_ip,
+                                    dest_interface=c.interfaces.internet_interface,
+                                    dest_ports=port,
+                                    snat_ip=internet_ip
+                                )
+
+                    elif option.startswith("allow_tcp_in"):
+
+                        if all_rule:
+                            app.print_error("allow_tcp_in rule not valid in context 'all', ignoring")
+                            continue
+
+                        #If there is a secondary port, it needs to be the target of forward rule and
+                        # be included in the DNAT target
+                        f_port = port
                         dnat_target = dmz_ip
-                        source = setting.get("host")
 
-                        if setting.get("secondary_port"):
-                            f_port = setting.get("secondary_port")
+                        if secondary_port:
+                            f_port = secondary_port
                             dnat_target += ":" + f_port
 
                         forward_tcp(dest_interface=c.interfaces.dmz_interface, dest_ip=dmz_ip,
-                                    dest_ports=f_port, source_ip=source)
+                                    dest_ports=f_port, source_ip=host)
 
-                        dnat_tcp(dest_ip=internet_ip, dest_ports=setting.get('port'),
-                                 dnat_ip=dnat_target, source_ip=source)
-                    
-                elif option.startswith("allow_udp_in"):
-                    settings = _parse_ip_and_port_setting(conf.get(server, option))
-                    for setting in settings:
-                        #Determine forwarding port, DNAT target and source filter IP
-                        f_port = setting.get("port")
+                        dnat_tcp(dest_ip=internet_ip, dest_ports=port,
+                                 dnat_ip=dnat_target, source_ip=host)
+
+                    elif option.startswith("allow_udp_in"):
+                        if all_rule:
+                            app.print_error("allow_udp_in rule not valid in context 'all', ignoring")
+                            continue
+
+                        #If there is a secondary port, it needs to be the target of forward rule and
+                        # be included in the DNAT target
+                        f_port = port
                         dnat_target = dmz_ip
-                        source = setting.get("host")
 
-                        if setting.get("secondary_port"):
-                            f_port = setting.get("secondary_port")
+                        if secondary_port:
+                            f_port = secondary_port
                             dnat_target += ":" + f_port
 
                         forward_udp(dest_interface=c.interfaces.dmz_interface, dest_ip=dmz_ip,
-                                    dest_ports=f_port, source_ip=source)
-                        dnat_udp(dest_ip=internet_ip, dest_ports=setting.get('port'), dnat_ip=dnat_target,
-                                 source_ip=source)
-                elif option.startswith("allow_tcp_out"):
-                    settings = _parse_ip_and_port_setting(conf.get(server, option))
-                    for setting in settings:
-                        #Determine forwarding port and destination filter IP, if any
-                        f_port = setting.get("port")
-                        destination = setting.get("host")
+                                    dest_ports=f_port, source_ip=host)
+                        dnat_udp(dest_ip=internet_ip, dest_ports=port, dnat_ip=dnat_target,
+                                 source_ip=host)
 
-                        forward_tcp(source_interface=c.interfaces.dmz_interface, source_ip=dmz_ip,
-                                    dest_ports=f_port, dest_ip=destination)
-                        # If host has a internet_ip it should leave the firewall on that
-                        # ip or else use the default public ip for the fw, which is
-                        # defined in postrouting().
-                        if conf.has_option(server, "internet_ip"):
-                            internet_ip = conf.get(server, "internet_ip")
-                            snat_tcp(
-                                source_ip=dmz_ip,
-                                dest_interface=c.interfaces.internet_interface,
-                                dest_ports=f_port,
-                                snat_ip=internet_ip
-                            )
-
-                elif option.startswith("allow_udp_out"):
-                    settings = _parse_ip_and_port_setting(conf.get(server, option))
-                    for setting in settings:
-                        #Determine forwarding port and destination filter IP, if any
-                        f_port = setting.get("port")
-                        destination = setting.get("host")
-
-                        forward_udp(source_interface=c.interfaces.dmz_interface, source_ip=dmz_ip,
-                                    dest_ports=f_port, dest_ip=destination)
-
-                        # If host has a internet_ip it should leave the firewall on that
-                        # ip or else use the default public ip for the fw, which is
-                        # defined in postrouting().
-                        if conf.has_option(server, "internet_ip"):
-                            internet_ip = conf.get(server, "internet_ip")
-                            snat_udp(
-                                source_ip=dmz_ip,
-                                dest_interface=c.interfaces.internet_interface,
-                                dest_ports=f_port,
-                                snat_ip=internet_ip
-                            )
-
-                elif option == "allow_icmp_in":
-                    #Determine forwarding port, DNAT target and source filter IP
-                    forward_icmp(dest_interface=c.interfaces.dmz_interface, dest_ip=dmz_ip)
-                elif option == "allow_icmp_out":
-                    forward_icmp(source_interface=c.interfaces.dmz_interface, source_ip=dmz_ip)
+                    elif option == "allow_icmp_in" and dmz_ip:
+                        forward_icmp(dest_interface=c.interfaces.dmz_interface, dest_ip=dmz_ip)
+                    elif option == "allow_icmp_out" and dmz_ip:
+                        forward_icmp(source_interface=c.interfaces.dmz_interface, source_ip=dmz_ip)
 
 
 def setup_aliases(conf):
