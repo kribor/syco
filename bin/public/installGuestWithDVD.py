@@ -31,10 +31,12 @@ import nfs
 import sys
 import disk
 
+
 def build_commands(commands):
     commands.add(
         "install-guest", install_guest, "hostname",
         help="Install KVM guest from dvd.")
+
 
 class install_guest:
     hostname = None
@@ -55,24 +57,24 @@ class install_guest:
         self.unmount_dvd()
 
     def check_commandline_args(self, args):
-        if (len(args) != 2):
+        if len(args) != 2:
             raise Exception("Enter the hostname of the server to install")
         else:
             self.hostname = args[1]
 
     def check_if_host_is_installed(self):
         result = x("virsh list --all")
-        if (self.hostname in result):
+        if self.hostname in result:
             raise Exception(self.hostname + " already installed")
 
     def init_host_options_from_config(self):
-        '''
+        """
         Initialize all used options from install.cfg.
 
         If the options are invalid, app and config will throw exceptions,
         that will be forwarded to the starter app.
 
-        '''
+        """
         # The ip connected to the admin net, from which the nfs
         # export is done.
         self.kvm_host_ip = net.get_lan_ip()
@@ -146,17 +148,19 @@ class install_guest:
 
         self.property_list = prop
 
-    def mount_dvd(self):
-        if (not os.access("/media/dvd", os.F_OK)):
+    @staticmethod
+    def mount_dvd():
+        if not os.access("/media/dvd", os.F_OK):
             x("mkdir /media/dvd")
 
-        if (not os.path.ismount("/media/dvd")):
+        if not os.path.ismount("/media/dvd"):
             x("mount -o ro -t iso9660 /dev/dvd /media/dvd")
 
-        if (not os.access("/media/dvd/RPM-GPG-KEY-CentOS-6", os.F_OK)):
+        if not os.access("/media/dvd/RPM-GPG-KEY-CentOS-6", os.F_OK):
             raise Exception("Couldn't mount dvd")
 
-    def unmount_dvd(self):
+    @staticmethod
+    def unmount_dvd():
         x("umount /media/dvd")
 
     def create_kickstart(self):
@@ -174,13 +178,15 @@ class install_guest:
 
         set_config_property_batch(hostname_ks_file, self.property_list, False)
 
-    def start_nfs_export(self):
+    @staticmethod
+    def start_nfs_export():
         nfs.add_export("kickstart", app.SYCO_PATH + "var/kickstart/generated/")
         nfs.add_export("dvd", "/media/dvd/")
         nfs.configure_with_static_ip()
         nfs.restart_services()
         nfs.add_iptables_rules()
 
+    @staticmethod
     def stop_nfs_export(self):
         nfs.remove_iptables_rules()
         nfs.stop_services()
@@ -194,7 +200,7 @@ class install_guest:
             int(self.property_list['\$total_disk_gb']) + 1,
             config.host(self.hostname).get_vol_group())
 
-        cmd =  " virt-install"
+        cmd = " virt-install"
         cmd += " -d --connect qemu:///system"
         cmd += " --name " + self.hostname
         cmd += " --ram " + self.ram
@@ -229,12 +235,12 @@ class install_guest:
         '''
         app.print_verbose("Wait for installation of " + self.hostname +
                           " to complete", new_line=False)
-        while(True):
+        while True:
             time.sleep(10)
             print ".",
             sys.stdout.flush()
             result = x("virsh list", output=False)
-            if (self.hostname not in result):
+            if self.hostname not in result:
                 print "Now installed"
                 break
 
