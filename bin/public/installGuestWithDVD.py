@@ -154,7 +154,7 @@ class install_guest:
             x("mkdir /media/dvd")
 
         if not os.path.ismount("/media/dvd"):
-            x("mount -o ro -t iso9660 /dev/dvd /media/dvd")
+            x("mount -o ro -t iso9660 /opt/syco/etc/iso /media/dvd")
 
         if not os.access("/media/dvd/RPM-GPG-KEY-CentOS-6", os.F_OK):
             raise Exception("Couldn't mount dvd")
