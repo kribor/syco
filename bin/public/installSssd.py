@@ -61,15 +61,15 @@ def install_sssd(args):
     iptables.save()
 
     ip = config.general.get_ldap_server_ip()
-    general.wait_for_server_to_start(ip, "636")
+    general.wait_for_server_to_start(ip, "390")
 
-    install_certs()
+    #install_certs()
 
     # For some reason it needs to be executed twice.
     authconfig()
     authconfig()
 
-    installOpenLdap.configure_client_cert_for_ldaptools()
+    #installOpenLdap.configure_client_cert_for_ldaptools()
     augeas = Augeas(x)
     configure_sssd(augeas)
     configure_sudo(augeas)
@@ -133,8 +133,8 @@ def authconfig():
     cmd = (
         "authconfig" +
         " --enablesssd --enablesssdauth --enablecachecreds" +
-        " --enableldap --enableldaptls --enableldapauth" +
-        " --ldapserver='ldaps://%s' --ldapbasedn='%s'" +
+        " --enableldap --enableldapauth" +
+        " --ldapserver='ldap://%s' --ldapbasedn='%s'" +
         " --disablenis --disablekrb5" +
         " --enableshadow --enablemkhomedir --enablelocauthorize" +
         " --passalgo=sha512" +
@@ -161,11 +161,11 @@ def configure_sssd(augeas):
     augeas.set_enhanced("/files/etc/sssd/sssd.conf/target[. = 'domain/default']/enumerate", "true")
 
     # Configure client certificate auth.
-    augeas.set_enhanced("/files/etc/sssd/sssd.conf/target[. = 'domain/default']/ldap_tls_cert",
-                        "/etc/openldap/cacerts/client.pem")
-    augeas.set_enhanced("/files/etc/sssd/sssd.conf/target[. = 'domain/default']/ldap_tls_key",
-                        "/etc/openldap/cacerts/client.pem")
-    augeas.set_enhanced("/files/etc/sssd/sssd.conf/target[. = 'domain/default']/ldap_tls_reqcert", "demand")
+    #augeas.set_enhanced("/files/etc/sssd/sssd.conf/target[. = 'domain/default']/ldap_tls_cert",
+    #                    "/etc/openldap/cacerts/client.pem")
+    #augeas.set_enhanced("/files/etc/sssd/sssd.conf/target[. = 'domain/default']/ldap_tls_key",
+    #                    "/etc/openldap/cacerts/client.pem")
+    #augeas.set_enhanced("/files/etc/sssd/sssd.conf/target[. = 'domain/default']/ldap_tls_reqcert", "demand")
 
     # Only users with this employeeType are allowed to login to this computer.
     augeas.set_enhanced("/files/etc/sssd/sssd.conf/target[. = 'domain/default']/access_provider", "ldap")

@@ -563,7 +563,7 @@ def add_ldap_chain():
 
     app.print_verbose("Add iptables chain for ldap")
 
-    if (os.path.exists('/etc/init.d/slapd')):
+    if os.path.exists('/etc/init.d/slapd'):
         iptables("-N ldap_in")
         iptables("-A syco_input  -p tcp -j ldap_in")
         iptables(
@@ -576,8 +576,12 @@ def add_ldap_chain():
         iptables("-N ldap_out")
         iptables("-A syco_output -p tcp -j ldap_out")
         iptables(
-            "-A ldap_out -m state --state NEW -p tcp -d %s --dport 636 -j allowed_tcp" %
-            config.general.get_ldap_hostname()
+            "-A ldap_out -m state --state NEW -p tcp -d %s --dport 390 -j allowed_tcp" %
+            config.general.get_ldap_server_ip()
+        )
+        iptables(
+            "-A ldap_out -m state --state NEW -p udp -d %s --dport 390 -j allowed_tcp" %
+            config.general.get_ldap_server_ip()
         )
 
 
