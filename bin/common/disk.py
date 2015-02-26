@@ -22,7 +22,7 @@ def verify_volgroup(vol_group_name):
     Return the name of the first LVM volumegroup.
 
     """
-    result = x("vgdisplay --activevolumegroups -c")
+    result = x("vgdisplay -c")
     for row in result.split("\n"):
         volgroup = row.split(":", 1)[0].strip()
         if vol_group_name in volgroup:
