@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-'''
-Setup an iptable firewall according to the installed services.
+"""
+Setup an iptables firewall according to the firewall configuration, general and host-specific.
 
 If for example mysql is installed, port 3306 will be opened for incoming. This
 script should be the first script to be exeuted on a new installed server.
@@ -14,18 +14,16 @@ http://manpages.ubuntu.com/manpages/jaunty/man8/iptables.8.html
 http://www.cipherdyne.org/psad/
 http://security.blogoverflow.com/2011/08/base-rulesets-in-iptables/
 
-'''
+"""
 
-__author__ = "daniel.lindh@cybercow.se"
-__copyright__ = "Copyright 2011, The System Console project"
-__maintainer__ = "Daniel Lindh"
-__email__ = "syco@cybercow.se"
-__credits__ = ["Oskar Andreasson"]
+__author__ = ["Kristofer Borgstrom", "Daniel Lindh"]
+__copyright__ = "Copyright 2015, The System Console project"
+__maintainer__ = "Kristofer Borgstrom"
+__credits__ = ["Daniel Lindh", "Oskar Andreasson"]
 __license__ = "???"
-__version__ = "1.0.1"
-__status__ = "Production"
+__version__ = "2.0.0"
+__status__ = "Test"
 
-import os
 import sys
 
 
@@ -33,7 +31,6 @@ from config import *
 from config import get_servers
 from general import x
 from net import get_hostname
-from scopen import scOpen
 import app
 import general
 import installGlassfish31
@@ -41,15 +38,115 @@ import net
 import version
 
 
+class IptablesRule():
+
+    DIRECTIONS = ["in", "out", "fwd"]
+    META_ADDRESSES = ["front-ip", "front-net", "back-ip", "back-net", "local-ips", "local-nets"]
+
+    direction = None
+    service = None
+    ports = []
+    output = None
+    src = []
+    dst = []
+    raw = None
+
+    def __init__(self, direction=None, service=None, port=None, ports=[], src=[], dst=[], raw=None):
+
+        if raw:
+            self.raw = raw
+            return
+
+        if direction not in self.DIRECTIONS:
+            raise ValueError("Unknown direction %s, I only understand: %s" %(direction, ",".join(self.DIRECTIONS)))
+        else:
+            self.direction = direction
+
+        if not service or not isinstance(service, basestring):
+            raise ValueError("Expected a string as service parameter")
+        else:
+            self.service = service
+
+        if port:
+            self.ports = [port]
+        if ports:
+            self.ports.extend(ports)
+
+        if src:
+            self.src = self._parse_addresses(src)
+
+        if dst:
+            self.dst = self._parse_addresses(dst)
+
+    def _parse_addresses(self, addresses):
+
+        if not addresses:
+            return []
+
+        if isinstance(addresses, basestring):
+            return self._resolve_meta_address(addresses)
+        elif isinstance(addresses, list):
+            deep_list = [self._resolve_meta_address(addr) for addr in addresses]
+            #flatten list, making one list out of lists of lists
+            return [item for sublist in deep_list for item in sublist]
+
+    def _resolve_meta_address(self, address):
+        hostconf = config.host(net.get_hostname())
+
+        if address == self.META_ADDRESSES[0]:
+            return [hostconf.get_front_ip()]
+        elif address == self.META_ADDRESSES[1]:
+            return [config.general.get_front_subnet()]
+        elif address == self.META_ADDRESSES[2]:
+            return [hostconf.get_back_ip()]
+        elif address == self.META_ADDRESSES[3]:
+            return [config.general.get_back_subnet()]
+        elif address == self.META_ADDRESSES[4]:
+            res = [hostconf.get_front_ip()]
+            if config.general.is_back_enabled():
+                res.append(hostconf.get_back_ip())
+            return res
+        elif address == self.META_ADDRESSES[5]:
+            res = [config.general.get_front_subnet()]
+            if config.general.is_back_enabled():
+                res.append(config.general.get_back_subnet())
+            return res
+        else:
+            return [address]
+
+
+
+
+
+
+class InboundIptablesRule(IptablesRule):
+    def __init__(self, ):
+
+        direction = "in"
+        super(InboundIptablesRule, self).__init__(direction=direction)
+        if port:
+            self.ports = [port]
+        elif ports
+            self.ports = ports
+
+        if src:
+            if isinstance(src, basestring):
+                self.src = [src]
+            else:
+                #Assume this is a
+                self.src = src
+        self.dst = dst
+
+
 # The version of this module, used to prevent
 # the same script version to be executed more then
 # once on the same host.
-SCRIPT_VERSION = 3
+SCRIPT_VERSION = 4
 
 
 def build_commands(commands):
     commands.add("iptables-clear", iptables_clear, help="Clear all iptables rules.")
-    commands.add("iptables-setup", iptables_setup, help="Setup an iptable firewall, customized for installed services.")
+    commands.add("iptables-setup", iptables_setup, help="Setup an iptables firewall, customized for installed services.")
 
 
 def iptables(args, output = True):
@@ -155,6 +252,7 @@ def iptables_setup(args):
     _drop_all()
     create_chains()
     _setup_general_rules()
+    setup_configured_rules()
     setup_ssh_rules()
     setup_dns_resolver_rules()
     _setup_gpg_rules()
@@ -220,7 +318,6 @@ def setup_icmp_chains():
     iptables("-A INPUT  -p ICMP -j icmp_packets")
     iptables("-A OUTPUT -p ICMP -j icmp_packets")
 
-
 def setup_multicast_chains():
     app.print_verbose("Create Multicast chain.")
     iptables("-N multicast_packets")
@@ -270,9 +367,6 @@ def create_chains():
     app.print_verbose("Create allowed udp chain.")
     iptables("-N allowed_udp")
     iptables("-A allowed_udp -p UDP -j ACCEPT")
-    # TODO: Possible to restrict more?
-    #iptables("-A allowed_udp -p UDP --syn -j ACCEPT")
-    #iptables("-A allowed_udp -p UDP -m state --state ESTABLISHED,RELATED -j ACCEPT")
     iptables("-A allowed_udp -p UDP -j LOGDROP")
 
 
@@ -388,6 +482,17 @@ def setup_installation_server_rules():
 
     # Need to have this, until all repos are on the installation server.
     iptables("-A syco_output -p tcp -m multiport --dports 80,443 -j allowed_tcp")
+
+def setup_configured_rules():
+    #Parse fw rules from general
+    general_rules = config.get_general_fw_config()
+
+    for name, definition in general_rules.iteritems():
+        print name
+        print definition
+
+    sys.exit(1)
+    #Parse fw for this host
 
 
 def setup_proxy_rules():

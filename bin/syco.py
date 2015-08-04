@@ -74,6 +74,7 @@ class Commands:
         arguments_list = {}
         help_list = {}
         password_list = {}
+        firewall_rules = {}
 
         def __init__(self):
             self.name_list = {}
@@ -81,6 +82,7 @@ class Commands:
             self.arguments_list = {}
             self.help_list = {}
             self.password_list = {}
+            self.firewall_rules = {}
 
     # Lists of all public and private commands
     commands = {"public": CommandList(), "private": CommandList}
@@ -91,7 +93,7 @@ class Commands:
     # The maximum char length of name + argument
     name_length = 0
 
-    def add(self, name, func, arguments="", help="", password_list=[]):
+    def add(self, name, func, arguments="", help="", password_list=[], firewall_rules=[]):
         """
         Add a command that are able to be executed from the syco command line.
 
@@ -102,6 +104,7 @@ class Commands:
         self.commands[self.current_type].func_list[name] = func
         self.commands[self.current_type].arguments_list[name] = arguments.strip("[]")
         self.commands[self.current_type].password_list[name] = password_list
+        self.commands[self.current_type].firewall_rules[name] = firewall_rules
         if self.commands[self.current_type].arguments_list[name]:
             self.commands[self.current_type].arguments_list[name] = "{" + \
                 self.commands[self.current_type].arguments_list[name] + "}"
