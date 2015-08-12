@@ -146,7 +146,8 @@ SCRIPT_VERSION = 4
 
 def build_commands(commands):
     commands.add("iptables-clear", iptables_clear, help="Clear all iptables rules.")
-    commands.add("iptables-setup", iptables_setup, help="Setup an iptables firewall, customized for installed services.")
+    commands.add("iptables-setup", iptables_setup, help="Setup an iptables firewall, customized for installed "
+                                                        "services.")
 
 
 def iptables(args, output = True):
@@ -1142,6 +1143,26 @@ def add_ossec_chain():
             "-A ossec_out -m state --state NEW -p udp -d %s --dport 1514 -j allowed_udp" %
             config.general.get_ossec_server_ip()
         )
+
+def del_kibana_chain():
+    app.print_verbose("Delete iptables chain for kibana")
+    iptables("-D syco_input  -p tcp -j kibana_input", general.X_OUTPUT_CMD)
+    iptables("-D syco_output  -p tco -j kibana_outut", general.X_OUTPUT_CMD)
+    iptables("-F kibana", general.X_OUTPUT_CMD)
+    iptables("-X kibana", general.X_OUTPUT_CMD)
+
+
+def add_kibana_chain():
+    del_kibana_chain()
+
+    if (not os.path.exists('/etc/init.d/kibana')):
+        return
+
+    app.print_verbose("Add iptables chain for kibana")
+    iptables("-N kibana")
+    iptables("-A syco_input  -p ALL -j kibana_input")
+    iptables("-A syco_output  -p ALL -j kibana_output")
+    iptables("-A kiban_input -p TCP --dport 5601 -j allowed_tcp")
 
 
 
