@@ -346,7 +346,6 @@ def create_chains():
     # when debugging is needed.
     app.print_verbose("Create LOGDROP chain.")
     iptables("-N LOGDROP")
-    #iptables("-A LOGDROP -j LOG --log-prefix 'IPT-LOGDROP:'")
     iptables("-A LOGDROP -j DROP")
 
     app.print_verbose("Create allowed tcp chain.")
@@ -437,7 +436,8 @@ def setup_ssh_rules():
 #  #wait 60 seconds if 3 times failed to connect
 #  ################################################################
 #  iptables -I INPUT -p tcp -i eth0 --dport 22 -m state --state NEW -m recent --name sshprobe --set -j ACCEPT
-#  iptables -I INPUT -p tcp -i eth0 --dport 22 -m state --state NEW -m recent --name sshprobe --update --seconds 60 --hitcount 3 --rttl -j LOGDROP
+#  iptables -I INPUT -p tcp -i eth0 --dport 22 -m state --state NEW -m recent --name sshprobe --update --seconds 60 \
+#           --hitcount 3 --rttl -j LOGDROP
 
 
 def setup_dns_resolver_rules():

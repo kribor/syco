@@ -167,7 +167,7 @@ class Config(object):
             self.etc_path = etc_path
             self.usr_path = usr_path
 
-        def get_option(self, option, default_value = None):
+        def get_option(self, option, default_value=None):
             return Config.SycoConfig.get_option(self, "general", option, default_value)
 
         def host(self, hostname):
@@ -268,7 +268,7 @@ class Config(object):
             return self.get_option("resolv.search")
 
         def get_nameserver_server(self):
-            return self.get_option("nameserver.server")
+            return self.get_option("nameserver.server", "")
 
         def get_nameserver_server_ip(self, prefer_back_net=False):
 
