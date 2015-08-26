@@ -35,7 +35,7 @@ SCRIPT_VERSION = 4
 def build_commands(commands):
     commands.add("install-nrpe-client", install_nrpe,
                  help="Installs NRPE daemon and nagios plugins for monitoring by remote server.",
-                 firewall_rules=[InboundFirewallRule(service="nrpe", ports="5666",
+                 firewall_config=[InboundFirewallRule(service="nrpe", ports="5666",
                                                      src=config.general.get_monitor_server_ip())])
 
 

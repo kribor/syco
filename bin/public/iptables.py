@@ -33,7 +33,6 @@ from general import x
 from net import get_hostname
 import app
 import general
-import installGlassfish31
 import net
 import version
 
@@ -68,12 +67,12 @@ def iptables(args, output=True):
 
 
 def del_module(name):
-    '''
+    """
     Delete module from IPTABLES_MODULES in /etc/sysconfig/iptables-config
 
     Plus not needed whitespaces.
 
-    '''
+    """
     app.print_verbose("Del module " + name)
 
     # Line 1: Remove all old existing module X
@@ -141,10 +140,10 @@ def iptables_clear(args):
 
 
 def save():
-    '''
+    """
     Save all current iptable rules to file, so it will be reloaded after reboot.
 
-    '''
+    """
     app.print_verbose("Save current iptables rules to /etc/sysconfig/iptables.")
     x("/sbin/iptables-save > /etc/sysconfig/iptables")
 
@@ -163,11 +162,9 @@ def iptables_setup(args):
     _setup_general_rules()
     setup_ssh_rules()
     setup_dns_resolver_rules()
-    #_setup_gpg_rules()
-    #setup_installation_server_rules()
-    setup_proxy_rules()
 
-    #add_service_chains()
+    add_general_rules()
+    add_dynamic_modules()
     add_dynamic_chains()
 
     save()
@@ -182,13 +179,13 @@ def _drop_all():
 
 
 def setup_syco_chains(device=False):
-    '''
+    """
     Setup input/output/forward chains that are used by all syco installed services.
 
     This is so it's easier to remove/rebuild iptables rules for a specific
     service. And easier to trace what rules that are used for a specific service.
 
-    '''
+    """
     app.print_verbose("Create syco input, output, forward chain")
 
     # Input chain
@@ -225,6 +222,7 @@ def setup_icmp_chains():
     iptables("-A INPUT  -p ICMP -j icmp_packets")
     iptables("-A OUTPUT -p ICMP -j icmp_packets")
 
+
 def setup_multicast_chains():
     app.print_verbose("Create Multicast chain.")
     iptables("-N multicast_packets")
@@ -234,14 +232,29 @@ def setup_multicast_chains():
     iptables("-A multicast_packets -d 0.0.0.0/8 -j DROP")
     iptables("-A OUTPUT -p ALL -j multicast_packets")
 
-def add_service_chains():
-    """
-    Rules that will only be added on servers that has a specific service installed.
-    """
-    add_cobbler_chain()
-    add_glassfish_chain()
-    add_kvm_chain()
-    add_openvpn_chain()
+
+def add_general_rules():
+    #Find general firewall rules in general section of config
+    all_general_items = dict(config.general.items("general"))
+
+    #Find and process firewall rules
+    for key in all_general_items:
+        if key.startswith("fw.host."):
+            #Parse rule type by removing the prefix
+            rule_type = key[len("fw.host."):]
+            #Get ports
+
+
+
+
+
+
+
+def add_dynamic_modules():
+    firewall_modules = _get_dynamic_firewall_modules(net.get_hostname())
+
+    for module in firewall_modules:
+        add_module(module.module_name)
 
 
 def add_dynamic_chains():
@@ -258,6 +271,31 @@ def add_dynamic_chains():
 
 
 def _get_dynamic_firewall_rules(host_name):
+
+    fw_config = _get_dynamic_firewall_config(host_name)
+    rules = []
+
+    for row in fw_config:
+        if isinstance(row, FirewallRule):
+            rules.append(row)
+
+    return rules
+
+
+def _get_dynamic_firewall_modules(host_name):
+
+    fw_config = _get_dynamic_firewall_config(host_name)
+    modules = []
+
+    for row in fw_config:
+        if isinstance(row, FirewallModule):
+            modules.append(row)
+
+    return modules
+
+
+def _get_dynamic_firewall_config(host_name):
+
     #Reference to syco.py commands
     global _commands_obj_reference
 
@@ -266,7 +304,7 @@ def _get_dynamic_firewall_rules(host_name):
     for syco_command in syco_command_names:
 
         #Find the firewall rules for command
-        firewall_rules = _commands_obj_reference.get_command_firewall_rules(syco_command)
+        firewall_rules = _commands_obj_reference.get_command_firewall_config(syco_command)
         if firewall_rules:
             all_rules.extend(firewall_rules)
 
@@ -274,23 +312,33 @@ def _get_dynamic_firewall_rules(host_name):
 
 
 def _recreate_service_chains(firewall_rules):
-    #Get all service names, using a set to avoid duplicates
+    #Get all service chains and hooks, using a sets to avoid duplicates
+    #Chains are unique per service and direction
+    #Hooks are unique per service, direction AND protocol
     service_chains = set()
+    service_hooks = set()
     for rule in firewall_rules:
         #Ignore syco chains as these have already been created.
         if rule.service == "syco":
             continue
-        service_chains.add((rule.service, rule.direction, rule.protocol))
+        service_chains.add((rule.service, rule.direction))
+        service_hooks.add((rule.service, rule.direction, rule.protocol))
 
+    #Remove existing hooks
+    for service_hook in service_hooks:
+        iptables("-D syco_{1} -p {2} -j {0}_{1}".format(*service_hook), general.X_OUTPUT_CMD)
+
+    #Remove, flush and create chains
     for service_chain in service_chains:
-        #Remove and flush any existing chains
-        iptables("-D syco_{1} -p {2} -j {0}_{1}".format(*service_chain), general.X_OUTPUT_CMD)
+
         iptables("-F {0}_{1}".format(*service_chain), general.X_OUTPUT_CMD)
         iptables("-X {0}_{1}".format(*service_chain), general.X_OUTPUT_CMD)
 
         #Create chains
         iptables("-N {0}_{1}".format(*service_chain))
-        iptables("-A syco_{1} -p {2} -j {0}_{1}".format(*service_chain))
+    #Add hooks
+    for service_hook in service_hooks:
+        iptables("-A syco_{1} -p {2} -j {0}_{1}".format(*service_hook))
 
 
 def create_chains():
@@ -335,9 +383,12 @@ def _setup_general_rules():
     setup_multicast_chains()
 
     app.print_verbose("Log weird packets that don't match the above.")
-    iptables("-A INPUT -m limit --limit 3/minute --limit-burst 3 -j LOG --log-level DEBUG --log-prefix 'IPT: INPUT packet died: '")
-    iptables("-A OUTPUT -m limit --limit 3/minute --limit-burst 3 -j LOG --log-level DEBUG --log-prefix 'IPT: OUTPUT packet died: '")
-    iptables("-A FORWARD -m limit --limit 3/minute --limit-burst 3 -j LOG --log-level DEBUG --log-prefix 'IPT: FORWARD packet died: '")
+    iptables("-A INPUT -m limit --limit 3/minute --limit-burst 3 -j LOG --log-level DEBUG --log-prefix "
+             "'IPT: INPUT packet died: '")
+    iptables("-A OUTPUT -m limit --limit 3/minute --limit-burst 3 -j LOG --log-level DEBUG --log-prefix "
+             "'IPT: OUTPUT packet died: '")
+    iptables("-A FORWARD -m limit --limit 3/minute --limit-burst 3 -j LOG --log-level DEBUG --log-prefix "
+             "'IPT: FORWARD packet died: '")
 
     iptables("-A INPUT -j LOGDROP")
     iptables("-A OUTPUT -j LOGDROP")
@@ -349,7 +400,8 @@ def setup_bad_tcp_packets():
 
     app.print_verbose("Create bad_tcp_packets chain.")
     iptables("-N bad_tcp_packets")
-    iptables("-A bad_tcp_packets -p tcp --tcp-flags SYN,ACK SYN,ACK -m state --state NEW -j REJECT --reject-with tcp-reset")
+    iptables("-A bad_tcp_packets -p tcp --tcp-flags SYN,ACK SYN,ACK -m state --state NEW -j REJECT "
+             "--reject-with tcp-reset")
 
     # Force SYN checks
     iptables("-A bad_tcp_packets -p tcp ! --syn -m state --state NEW -j LOG --log-prefix 'IPT: New not syn:'")
@@ -402,69 +454,6 @@ def setup_dns_resolver_rules():
                      " --dport 53 -m state --state NEW -j allowed_tcp")
 
 
-def _setup_gpg_rules():
-    """
-    Allow GPG to talk to keyserver.ubuntu.com:11371
-
-    """
-    app.print_verbose("Setup GPG output rule.")
-    iptables("-A syco_output -p tcp -d keyserver.ubuntu.com --dport 11371 -j allowed_tcp")
-
-
-def setup_installation_server_rules():
-    """
-    Open http access to the installation server.
-
-    TODO: Move all repos to the install server and harden the iptables.
-
-    """
-    app.print_verbose("Setup http access to installation server.")
-    #ip=config.general.get_installation_server_ip()
-    #iptables("-A syco_output -p tcp -d " + ip + " -m multiport --dports 80,443 -j allowed_tcp")
-
-    # Need to have this, until all repos are on the installation server.
-    iptables("-A syco_output -p tcp -m multiport --dports 80,443 -j allowed_tcp")
-
-
-def setup_proxy_rules():
-    """
-    Open access to proxy if it exists
-    """
-    proxy_host = config.general.get_proxy_host()
-    proxy_port = config.general.get_proxy_port()
-
-    if proxy_host and proxy_port:
-        iptables("-A syco_output -p tcp -m multiport -d {0} --dports {1} -j allowed_tcp".format(proxy_host, proxy_port))
-
-
-def del_kvm_chain():
-    app.print_verbose("Delete iptables chain for kvm")
-    iptables("-D syco_forward  -p ALL -j kvm", general.X_OUTPUT_CMD)
-    iptables("-F kvm", general.X_OUTPUT_CMD)
-    iptables("-X kvm", general.X_OUTPUT_CMD)
-
-
-def add_kvm_chain():
-    del_kvm_chain()
-
-    if (not os.path.exists('/etc/init.d/libvirtd')):
-        return
-
-    app.print_verbose("Add iptables chain for kvm")
-
-    iptables("-N kvm")
-    iptables("-A syco_forward  -p ALL -j kvm")
-
-    iptables("-A kvm -m physdev --physdev-is-bridged -j ACCEPT")
-
-    # DHCP / TODO: Needed??
-    # iptables("-A kvm -m state --state NEW -m udp -p udp --dport 67 -j allowed_udp")
-    # iptables("-A kvm -m state --state NEW -m udp -p udp --dport 68 -j allowed_udp")
-
-    # Reload all settings.
-    x("service libvirtd reload")
-
-
 def del_nfs_chain():
     app.print_verbose("Delete iptables chain for nfs")
     iptables("-D syco_input  -p ALL -j nfs_export", general.X_OUTPUT_CMD)
@@ -500,223 +489,14 @@ def add_nfs_chain():
     iptables("-A nfs_export -m state --state NEW -p udp --dport 111 -j allowed_udp")
 
 
-def del_cobbler_chain():
-    app.print_verbose("Delete iptables chain for cobbler")
-    iptables("-D syco_input  -p ALL -j cobbler", general.X_OUTPUT_CMD)
-    iptables("-D syco_output -p ALL -j cobbler", general.X_OUTPUT_CMD)
-    iptables("-F cobbler", general.X_OUTPUT_CMD)
-    iptables("-X cobbler", general.X_OUTPUT_CMD)
-
-    iptables("-D syco_input -p ALL -j cobbler_output", general.X_OUTPUT_CMD)
-    iptables("-F cobbler_output", general.X_OUTPUT_CMD)
-    iptables("-X cobbler_output", general.X_OUTPUT_CMD)
-
-    del_module("nf_conntrack_tftp")
-
-
-def add_cobbler_chain():
-    del_cobbler_chain()
-
-    if (not os.path.exists('/etc/init.d/cobblerd')):
-        return
-
-    app.print_verbose("Add iptables chain for cobbler")
-
-    add_module("nf_conntrack_tftp")
-
-    iptables("-N cobbler_input")
-    iptables("-A syco_input -p ALL -j cobbler_input")
-
-    iptables("-N cobbler_output")
-    iptables("-A syco_output -p ALL -j cobbler_output")
-
-    # DNS - TCP/UDP
-    iptables("-A cobbler_input -m state --state NEW -m tcp -p tcp --dport 53 -j allowed_tcp")
-    iptables("-A cobbler_input -m state --state NEW -m tcp -p tcp --dport 53 -j allowed_udp")
-
-    # TFTP - TCP/UDP
-    iptables("-A cobbler_input -m state --state NEW -m tcp -p tcp --dport 69 -j allowed_tcp")
-    iptables("-A cobbler_input -m state --state NEW -m udp -p udp --dport 69 -j allowed_udp")
-
-    # NTP
-    iptables("-A cobbler_input -m state --state NEW -m udp -p udp --dport 123 -j allowed_udp")
-
-    # DHCP TODO: In/Out
-    iptables("-A cobbler_input -m state --state NEW -m udp -p udp --dport 68 -j allowed_udp")
-
-    # HTTP/HTTPS
-    iptables("-A cobbler_input -m state --state NEW -m tcp -p tcp --dport 80 -j allowed_tcp")
-    iptables("-A cobbler_input -m state --state NEW -m tcp -p tcp --dport 443 -j allowed_tcp")
-
-    # Syslog for cobbler
-    iptables("-A cobbler_input -m state --state NEW -m udp -p udp --dport 25150 -j allowed_udp")
-
-    # Koan XMLRPC ports
-    iptables("-A cobbler_input -m state --state NEW -m tcp -p tcp --dport 25151 -j allowed_tcp")
-    iptables("-A cobbler_input -m state --state NEW -m tcp -p tcp --dport 25152 -j allowed_tcp")
-
-    # RSYNC
-    iptables("-A cobbler_output -m state --state NEW -m tcp -p tcp --dport 873 -j allowed_tcp")
-
-
-def del_glassfish_chain():
-    app.print_verbose("Delete iptables chain for glassfish")
-    iptables("-D syco_input  -p ALL -j glassfish_input", general.X_OUTPUT_CMD)
-    iptables("-D syco_output -p ALL -j glassfish_output", general.X_OUTPUT_CMD)
-    iptables("-F glassfish_input", general.X_OUTPUT_CMD)
-    iptables("-X glassfish_input", general.X_OUTPUT_CMD)
-    iptables("-F glassfish_output", general.X_OUTPUT_CMD)
-    iptables("-X glassfish_output", general.X_OUTPUT_CMD)
-
-
-def add_glassfish_chain():
-    del_glassfish_chain()
-
-    if (not os.path.exists("/etc/init.d/" + installGlassfish31.GLASSFISH_VERSION)):
-        return
-
-    app.print_verbose("Add iptables chain for glassfish")
-
-    iptables("-N glassfish_input")
-    iptables("-N glassfish_output")
-    iptables("-A syco_input  -p ALL -j glassfish_input")
-    iptables("-A syco_output -p ALL -j glassfish_output")
-
-    # TODO only on dev servers??
-    app.print_verbose("Setup glassfish input rule.")
-    glassfish_ports = "6048,6080,6081,7048,7080,7081"
-    iptables("-A glassfish_input -p TCP -m multiport --dports " + glassfish_ports + " -j allowed_tcp")
-
-    iptables("-A glassfish_output -p TCP -m multiport -d " + config.general.get_mysql_primary_master_ip()   + " --dports 3306 -j allowed_tcp")
-    iptables("-A glassfish_output -p TCP -m multiport -d " + config.general.get_mysql_secondary_master_ip() + " --dports 3306 -j allowed_tcp")
-
-
-def del_icinga_chain():
-    app.print_verbose("Delete iptables chain for Icinga poller")
-    iptables("-D syco_output -p ALL -j icinga_output", general.X_OUTPUT_CMD)
-    iptables("-F icinga_output", general.X_OUTPUT_CMD)
-    iptables("-X icinga_output", general.X_OUTPUT_CMD)
-
-
-def add_icinga_chain():
-    del_icinga_chain()
-
-    if (not os.path.exists("/etc/icinga/icinga.cfg")):
-        return
-
-    app.print_verbose("Add iptables chain for Icinga")
-
-    iptables("-N icinga_output")
-    iptables("-A syco_output -p ALL -j icinga_output")
-
-    # Output rule for NRPE-queries
-
-    icinga_ports = "5666"
-    icinga_server_hostname = config.general.get_monitor_server_hostname()
-    icinga_server_ip = config.host(config.general.get_monitor_server()).get_front_ip()
-
-    app.print_verbose("Chain for NRPE output".format(icinga_server_hostname))
-    iptables("-A icinga_output -p TCP -m multiport -s " + icinga_server_ip + " --dports " + icinga_ports + " -m state --state NEW -j allowed_tcp")
-
-    # Output rule for SNMP-queries
-
-    snmp_port = "161"
-    switch_hostname_list = config.get_switches()
-
-    #For every switch
-
-    for host in config.get_switches():
-        host_ip = config.host(host).get_back_ip()
-        iptables("-A icinga_output -p udp --dport " + snmp_port + " -d " + host_ip + " -m state --state NEW -j allowed_udp")
-
-
-def del_openvpn_chain():
-    app.print_verbose("Delete iptables chain for openvpn")
-    iptables("-D syco_input  -p ALL -j openvpn_input", general.X_OUTPUT_CMD)
-    iptables("-D syco_forward -p ALL -j openvpn_forward", general.X_OUTPUT_CMD)
-    iptables("-t nat -D syco_nat_postrouting -p ALL -j openvpn_postrouting", general.X_OUTPUT_CMD)
-
-    iptables("iptables -F openvpn_input", general.X_OUTPUT_CMD)
-    iptables("iptables -F openvpn_forward", general.X_OUTPUT_CMD)
-    iptables("iptables -t nat -F openvpn_postrouting", general.X_OUTPUT_CMD)
-
-    iptables("iptables -X openvpn_input", general.X_OUTPUT_CMD)
-    iptables("iptables -X openvpn_forward", general.X_OUTPUT_CMD)
-    iptables("iptables -t nat -X openvpn_postrouting", general.X_OUTPUT_CMD)
-
-
-def add_openvpn_chain():
-    del_openvpn_chain()
-
-    if (not os.path.exists('/etc/init.d/openvpn')):
-        return
-
-    app.print_verbose("Add iptables chain for openvpn")
-
-    network = config.general.get_openvpn_network()
-
-    iptables("-N openvpn_input")
-    iptables("-N openvpn_forward")
-    iptables("-t nat -N openvpn_postrouting")
-
-    iptables("-A syco_input        -p ALL -j openvpn_input")
-    iptables("-A syco_forward      -p ALL -j openvpn_forward")
-    iptables("-t nat -A syco_nat_postrouting -p ALL -j openvpn_postrouting")
-
-    #Accept connections on 1194 for vpn access from clients
-    iptables("-A openvpn_input -p udp --dport 1194 -j allowed_udp")
-    iptables("-A openvpn_input -p tcp --dport 1194 -j allowed_tcp")
-
-    #Apply forwarding for OpenVPN Tunneling
-    iptables("-A openvpn_forward -m state --state RELATED,ESTABLISHED -j ACCEPT")
-    iptables("-A openvpn_forward -s %s/24 -j ACCEPT" % network)
-    # iptables("-A openvpn_forward -p tcp -m state --state NEW -m multiport --dports 22,34,53,80,443,4848,8080,8181,6048,6080,6081,7048,7080,7081 -j allowed_tcp")
-    iptables("-A openvpn_forward -j REJECT")
-    iptables("-t nat -A openvpn_postrouting -s %s/24 -o eth0 -j MASQUERADE" % network)
-    iptables("-t nat -A openvpn_postrouting -s %s/24 -o eth1 -j MASQUERADE" % network)
-
-
-def del_ossec_chain():
-    app.print_verbose("Delete iptables chain for Ossec")
-
-    iptables("-D syco_input -p udp -j ossec_in", general.X_OUTPUT_CMD)
-    iptables("-F ossec_in", general.X_OUTPUT_CMD)
-    iptables("-X ossec_in", general.X_OUTPUT_CMD)
-
-    iptables("-D syco_output -p udp -j ossec_out", general.X_OUTPUT_CMD)
-    iptables("-F ossec_out", general.X_OUTPUT_CMD)
-    iptables("-X ossec_out", general.X_OUTPUT_CMD)
-
-
-def del_kibana_chain():
-    app.print_verbose("Delete iptables chain for kibana")
-    iptables("-D syco_input  -p tcp -j kibana_input", general.X_OUTPUT_CMD)
-    iptables("-D syco_output  -p tco -j kibana_outut", general.X_OUTPUT_CMD)
-    iptables("-F kibana", general.X_OUTPUT_CMD)
-    iptables("-X kibana", general.X_OUTPUT_CMD)
-
-
-def add_kibana_chain():
-    del_kibana_chain()
-
-    if (not os.path.exists('/etc/init.d/kibana')):
-        return
-
-    app.print_verbose("Add iptables chain for kibana")
-    iptables("-N kibana")
-    iptables("-A syco_input  -p ALL -j kibana_input")
-    iptables("-A syco_output  -p ALL -j kibana_output")
-    iptables("-A kiban_input -p TCP --dport 5601 -j allowed_tcp")
-
-
 def _get_modules(commands_path):
-    '''
+    """
     Return a list of objects representing all available syco modules in specified folder.
 
-    '''
+    """
     modules=[]
     for module in os.listdir(commands_path):
-        if (module == '__init__.py' or module[-3:] != '.py'):
+        if module == '__init__.py' or module[-3:] != '.py':
             continue
         module = module[:-3]
 
@@ -729,8 +509,15 @@ def _get_modules(commands_path):
     return modules
 
 
+class FirewallModule(object):
 
-class IptablesRule(object):
+    module_name = None
+
+    def __init__(self, module_name):
+        self.module_name = module_name
+
+
+class FirewallRule(object):
 
     DIRECTIONS = ["input", "output", "forward"]
     META_ADDRESSES = ["front-ip", "front-net", "back-ip", "back-net", "local-ips", "local-nets"]
@@ -780,8 +567,7 @@ class IptablesRule(object):
         if self.raw:
             return self.raw
 
-        return self._build_iptables_command(service=self.service, direction=self.direction, src=self.src, dst=self.dst,
-                                            protocol=self.protocol, ports=self.ports)
+        return self._build_iptables_command()
 
     def _parse_addresses(self, addresses):
 
@@ -819,7 +605,7 @@ class IptablesRule(object):
         else:
             return [address]
 
-    def _build_iptables_command(self, service=False, direction="input", src=False, dst=False, protocol="tcp", ports=None):
+    def _build_iptables_command(self):
         """
         Build the command element by element (might be able to use ":" as wildcard
         for d/sport, and "[+]" for interface wildcard to save some lines
@@ -827,31 +613,46 @@ class IptablesRule(object):
         """
 
         #Manage service
-        if not service:
-            service = "syco"
+        if not self.service:
+            self.service = "syco"
 
         #Protocol
-        string_chain = "-A %s_%s" % (service, direction)
-        string_protocol = " -p " + protocol
-        string_source_ip = (" -s " + ",".join(src) if src else "")
+        string_chain = "-A %s_%s" % (self.service, self.direction)
+        string_protocol = " -p " + self.protocol
+        string_source_ip = (" -s " + ",".join(self.src) if self.src else "")
         # Pragmatic solution to --sport/ -m multiport sports choice (instead of more if's) is to always assume multiport
-        string_dest_ip = (" -d " + ",".join(dst) if dst else "")
-        string_dest_ports = (" -m multiport --dports=" + ",".join(ports) if ports else "")
+        string_dest_ip = (" -d " + ",".join(self.dst) if self.dst else "")
+        string_dest_ports = (" -m multiport --dports=" + ",".join(self.ports) if self.ports else "")
         string_state = " -m state --state NEW"
-        string_next_chain = (" -j allowed_%s" % protocol)
+        string_next_chain = (" -j allowed_%s" % self.protocol)
 
         command = string_chain + string_protocol + string_source_ip + string_dest_ip + string_dest_ports + \
                   string_state + string_next_chain
         return command
 
 
-class InboundFirewallRule(IptablesRule):
+class ForwardFirewallRule(FirewallRule):
     def __init__(self, service=None, ports=[], src=[], dst=[], protocol=None):
 
-        super(self.__class__, self).__init__(direction="input", service=service, ports=ports, src=src, dst=dst, protocol=protocol)
+        super(self.__class__, self).__init__(direction="forward", service=service, ports=ports, src=src, dst=dst,
+                                             protocol=protocol)
 
 
-class OutboundFirewallRule(IptablesRule):
+class InboundFirewallRule(FirewallRule):
     def __init__(self, service=None, ports=[], src=[], dst=[], protocol=None):
 
-        super(self.__class__, self).__init__(direction="output", service=service, ports=ports, src=src, dst=dst, protocol=protocol)
+        super(self.__class__, self).__init__(direction="input", service=service, ports=ports, src=src, dst=dst,
+                                             protocol=protocol)
+
+
+class OutboundFirewallRule(FirewallRule):
+    def __init__(self, service=None, ports=[], src=[], dst=[], protocol=None):
+
+        super(self.__class__, self).__init__(direction="output", service=service, ports=ports, src=src, dst=dst,
+                                             protocol=protocol)
+
+
+class RawFirewallRule(FirewallRule):
+    def __init__(self, service=None, direction=None, raw=None):
+
+        super(self.__class__, self).__init__(direction=direction, service=service, raw=raw)

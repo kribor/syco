@@ -91,10 +91,10 @@ class PostFixProperties():
 def build_commands(commands):
     commands.add("install-postfix-server", install_mail_server,
                  help="Install postfix/mail-relay server on the current server.",
-                 firewall_rules=[InboundFirewallRule(service="postfix", ports=["25"])])
+                 firewall_config=[InboundFirewallRule(service="postfix", ports=["25"])])
     commands.add("install-postfix-client", install_mail_client,
                  help="Install postfix/mail-relay client on the current server.",
-                 firewall_rules=[OutboundFirewallRule(service="postfix", ports=["25"],
+                 firewall_config=[OutboundFirewallRule(service="postfix", ports=["25"],
                                                       dst=config.general.get_mailrelay_server_ip())])
     commands.add("uninstall-postfix-server", uninstall_mail_relay,
                  help="Uninstall postfix/mail-relay client on the current server.")

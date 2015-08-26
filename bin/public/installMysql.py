@@ -41,7 +41,7 @@ SCRIPT_VERSION = 2
 
 def build_commands(commands):
     commands.add("install-mysql",             install_mysql, "[server-id, innodb-buffer-pool-size]",
-                 help="Install mysql server on the current server.", firewall_rules=get_mysql_firewall_rules())
+                 help="Install mysql server on the current server.", firewall_config=get_mysql_firewall_rules())
     commands.add("uninstall-mysql",           uninstall_mysql,
                  help="Uninstall mysql server on the current server.")
     commands.add("install-mysql-replication", install_mysql_replication,

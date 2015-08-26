@@ -78,7 +78,7 @@ def build_commands(commands):
 
     '''
     commands.add("install-rsyslogd",          install_rsyslogd,   help="Install Rsyslog server.",
-                 firewall_rules=get_rsyslogd_firewall_rules())
+                 firewall_config=get_rsyslogd_firewall_rules())
     commands.add("uninstall-rsyslogd",        uninstall_rsyslogd,
                  help="Uninstall rsyslog server and all certs on the server.")
     commands.add("install-rsyslogd-newcerts", rsyslog_newcerts,   help="Generats new cert for rsyslogd clients.")

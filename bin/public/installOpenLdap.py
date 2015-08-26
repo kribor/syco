@@ -42,7 +42,7 @@ SCRIPT_VERSION = 2
 
 def build_commands(commands):
     commands.add("install-openldap", install_openldap, help="Install openldap.",
-                 firewall_rules=[InboundFirewallRule(service="ldap", ports="636", dst="local-ips", src="local-nets")])
+                 firewall_config=[InboundFirewallRule(service="ldap", ports="636", dst="local-ips", src="local-nets")])
     commands.add("uninstall-openldap", uninstall_openldap, help="Uninstall openldap.")
 
 def install_openldap(args):

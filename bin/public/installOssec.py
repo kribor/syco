@@ -45,7 +45,7 @@ def build_commands(commands):
 
     '''
     commands.add("install-ossec-client",   install_ossec_client,   help="Install Ossec Client.",
-                 firewall_rules=[InboundFirewallRule(service="ossec", ports=["1514"], protocol="udp",
+                 firewall_config=[InboundFirewallRule(service="ossec", ports=["1514"], protocol="udp",
                                                      src=config.general.get_ossec_server_ip()),
                                  OutboundFirewallRule(service="ossec", ports=["1514"], protocol="udp",
                                                       dst=config.general.get_ossec_server_ip())]

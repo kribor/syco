@@ -56,7 +56,7 @@ def build_commands(commands):
 
     '''
     commands.add("install-rsyslogd-client", install_rsyslogd_client, help="Install rsyslog client on the server.",
-                 firewall_rules=[OutboundFirewallRule(service="rsyslog", ports=["514"],
+                 firewall_config=[OutboundFirewallRule(service="rsyslog", ports=["514"],
                                                      dst=config.general.get_log_server_ip())])
     commands.add("uninstall-rsyslogd-client", uninstall_rsyslogd_client,
                  help="uninstall rsyslog client and all certs from the server.")

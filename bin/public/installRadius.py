@@ -45,7 +45,7 @@ def build_commands(commands):
 
     '''
     commands.add("install-radius",   install_freeradius,   help="Install FreeRadius server on the current server.",
-                 firewall_rules=get_radius_server_firewall_rules())
+                 firewall_config=get_radius_server_firewall_rules())
     commands.add("uninstall-radius", uninstall_freeradius, help="Uninstall Freeradius server on the current server.")
 
 

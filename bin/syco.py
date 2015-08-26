@@ -74,7 +74,7 @@ class Commands:
         arguments_list = {}
         help_list = {}
         password_list = {}
-        firewall_rules = {}
+        firewall_config = {}
 
         def __init__(self):
             self.name_list = {}
@@ -82,7 +82,7 @@ class Commands:
             self.arguments_list = {}
             self.help_list = {}
             self.password_list = {}
-            self.firewall_rules = {}
+            self.firewall_config = {}
 
     # Lists of all public and private commands
     commands = {"public": CommandList(), "private": CommandList}
@@ -93,7 +93,7 @@ class Commands:
     # The maximum char length of name + argument
     name_length = 0
 
-    def add(self, name, func, arguments="", help="", password_list=[], firewall_rules=[]):
+    def add(self, name, func, arguments="", help="", password_list=[], firewall_config=[]):
         """
         Add a command that are able to be executed from the syco command line.
 
@@ -104,7 +104,7 @@ class Commands:
         self.commands[self.current_type].func_list[name] = func
         self.commands[self.current_type].arguments_list[name] = arguments.strip("[]")
         self.commands[self.current_type].password_list[name] = password_list
-        self.commands[self.current_type].firewall_rules[name] = firewall_rules if firewall_rules else []
+        self.commands[self.current_type].firewall_config[name] = firewall_config if firewall_config else []
         if self.commands[self.current_type].arguments_list[name]:
             self.commands[self.current_type].arguments_list[name] = "{" + \
                 self.commands[self.current_type].arguments_list[name] + "}"
@@ -127,14 +127,14 @@ class Commands:
         else:
             app.parser.error('Unknown command %s' % command)
 
-    def get_command_firewall_rules(self, command):
+    def get_command_firewall_config(self, command):
         """
-        Get a list of all firewall rules registered with this command
+        Get a list of all firewall configs registered with this command
         """
         if command in self.commands["public"].name_list:
-            return self.commands["public"].firewall_rules[command]
+            return self.commands["public"].firewall_config[command]
         elif command in self.commands["private"].name_list:
-            return self.commands["private"].firewall_rules[command]
+            return self.commands["private"].firewall_config[command]
         else:
             app.parser.error('Unknown command %s' % command)
 

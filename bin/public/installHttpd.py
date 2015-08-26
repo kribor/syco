@@ -65,7 +65,7 @@ def build_commands(commands):
 
     """
     commands.add("install-httpd", install_httpd, help="Install apache webbserver on the current server.",
-                 firewall_rules=[InboundFirewallRule(service="httpd", ports=["80", "443"], dst="local-ips",
+                 firewall_config=[InboundFirewallRule(service="httpd", ports=["80", "443"], dst="local-ips",
                                                      protocol="tcp")])
     commands.add("uninstall-httpd", uninstall_httpd, help="remove apache webbserver on the current server.")
 

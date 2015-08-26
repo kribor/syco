@@ -40,7 +40,7 @@ SCRIPT_VERSION = 2
 
 def build_commands(commands):
     commands.add("install-sssd-client", install_sssd, help="Install sssd (ldap client).",
-                 firewall_rules=[OutboundFirewallRule(service="ldap", ports="636",
+                 firewall_config=[OutboundFirewallRule(service="ldap", ports="636",
                                                       dst=config.general.get_ldap_server_ip())])
     commands.add("uninstall-sssd-client", uninstall_sssd, help="Uninstall sssd.")
 

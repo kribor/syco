@@ -45,9 +45,9 @@ SCRIPT_VERSION = 1
 
 
 def build_commands(commands):
-    commands.add("install-ntp-server", install_ntp_server, firewall_rules=ntp_server_firewall_rules(),
+    commands.add("install-ntp-server", install_ntp_server, firewall_config=ntp_server_firewall_rules(),
                  help="Install ntp server on the current server.")
-    commands.add("install-ntp-client", install_ntp_client, firewall_rules=ntp_client_firewall_rules(),
+    commands.add("install-ntp-client", install_ntp_client, firewall_config=ntp_client_firewall_rules(),
                  help="Install ntp client on the current server.")
     commands.add("uninstall-ntp", uninstall_ntp, help="Uninstall ntp server on the current server.")
 

@@ -36,7 +36,7 @@ SCRIPT_VERSION = 1
 
 def build_commands(commands):
     commands.add("install-openvas",   install_openvas,   help="Install OpenVAS.",
-                 firewall_rules=get_openvas_firewall_rules())
+                 firewall_config=get_openvas_firewall_rules())
     commands.add("uninstall-openvas", uninstall_openvas, help="Uninstall NMAP.")
 
 
