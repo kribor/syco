@@ -37,8 +37,6 @@ import net
 import version
 
 
-
-
 # The version of this module, used to prevent
 # the same script version to be executed more then
 # once on the same host.
@@ -88,10 +86,10 @@ def del_module(name):
 
 
 def add_module(name):
-    '''
+    """
     Add module to the beginning of IPTABLES_MODULES in /etc/sysconfig/iptables-config
 
-    '''
+    """
     app.print_verbose("Add module " + name)
     x('sed -i "/IPTABLES_MODULES=/s/\\"/\\"' + name + ' /;' +
       '/IPTABLES_MODULES=/s/ \\"/\\"/g' +
@@ -100,10 +98,10 @@ def add_module(name):
 
 
 def iptables_clear(args):
-    '''
+    """
     Remove all iptables rules.
 
-    '''
+    """
     app.print_verbose("Clear all iptables rules.")
 
     # reset the default policies in the filter table.
@@ -141,7 +139,7 @@ def iptables_clear(args):
 
 def save():
     """
-    Save all current iptable rules to file, so it will be reloaded after reboot.
+    Save all current iptables rules to file, so it will be reloaded after reboot.
 
     """
     app.print_verbose("Save current iptables rules to /etc/sysconfig/iptables.")
@@ -169,6 +167,54 @@ def iptables_setup(args):
 
     save()
     version_obj.mark_executed()
+
+
+def parse_ip_and_port_setting(settings):
+    """
+    Parse a string with a comma-separated list of ip and port settings.
+
+    Syntax: [ip|network|host name:]primary-port[->secondary-port]
+
+    For example:
+    8.8.8.8:53           # Can be used with allow_tcp_out to allow port 53 to google DNS
+    80,443               # Can be used with allow_tcp_in to allow web access to a web server
+    80->8080,443->8443   # Can be used with allow_tcp_in to translate incoming port 80 traffic to an internal port 8080
+                         # AND 443 to 8443
+
+    Returns a list of dicts with the following possible keys:
+    - port
+    - host
+    - secondary_port
+    """
+
+    results = []
+    for setting in settings.split(","):
+        result = {}
+
+        host_and_ip = setting.split(":")
+        #Port is first part assuming if no IP specified
+        port_section = host_and_ip[0]
+        if len(host_and_ip) == 2:
+            #A host name/network/IP was specified
+            result['host'] = host_and_ip[0]
+            port_section = host_and_ip[1]
+        elif len(host_and_ip) > 2:
+            app.print_error("Unexpected number of colon separated sections in setting: %s, skipping!" % setting)
+            continue
+
+        ports = port_section.split("->")
+
+        result['port'] = ports[0]
+
+        if len(ports) == 2:
+            result['secondary_port'] = ports[1]
+        elif len(ports) > 2:
+            app.print_error("Unexpected number of \"->\" separated port sections in setting: %s, skipping!" % setting)
+            continue
+
+        results.append(result)
+
+    return results
 
 
 def _drop_all():
@@ -242,12 +288,23 @@ def add_general_rules():
         if key.startswith("fw.host."):
             #Parse rule type by removing the prefix
             rule_type = key[len("fw.host."):]
-            #Get ports
+            #Parse the value(s)
+            settings = parse_ip_and_port_setting(all_general_items[key])
 
+            for setting in settings:
+                port = setting.get("port")
+                host_ = setting.get("host")
 
-
-
-
+                if rule_type.startswith("allow_tcp_out"):
+                    iptables(OutboundFirewallRule(ports=[port], dst=host_, protocol="tcp").get_row())
+                elif rule_type.startswith("allow_udp_out"):
+                    iptables(OutboundFirewallRule(ports=[port], dst=host_, protocol="udp").get_row())
+                elif rule_type.startswith("allow_tcp_in"):
+                    iptables(InboundFirewallRule(ports=[port], src=host_, protocol="tcp").get_row())
+                elif rule_type.startswith("allow_udp_in"):
+                    iptables(InboundFirewallRule(ports=[port], src=host_, protocol="udp").get_row())
+                else:
+                    app.print_verbose("Ignoring unknown firewall rule type: %s" % rule_type)
 
 
 def add_dynamic_modules():
@@ -542,8 +599,11 @@ class FirewallRule(object):
         else:
             self.direction = direction
 
-        if not service or not isinstance(service, basestring):
+        if service and not isinstance(service, basestring):
             raise ValueError("Expected a string as service parameter")
+        elif not service:
+            #Default to syco service
+            self.service = "syco"
         else:
             self.service = service
 

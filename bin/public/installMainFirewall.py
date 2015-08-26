@@ -352,7 +352,7 @@ def process_allow_rules(c, conf):
                 if c.interfaces.dmz_ip == dmz_ip:
                     server_is_fw = True
 
-                settings = _parse_ip_and_port_setting(conf.get(server, option))
+                settings = syco_iptables.parse_ip_and_port_setting(conf.get(server, option))
                 for setting in settings:
                     port = setting.get("port")
                     host = setting.get("host")
@@ -812,54 +812,6 @@ def _build_iptables_command(table=False, source_ip=False, dest_ip=False, chain=F
               string_source_ports + string_dest_ip + string_dest_ports + string_dest_interface + string_state + \
               string_next_chain + string_dnat_ip + string_snat_ip
     return command
-
-
-def _parse_ip_and_port_setting(settings):
-    """
-    Parse a string with a comma-separated list of ip and port settings.
-
-    Syntax: [ip/network/host name:]primary-port[->secondary-port]
-
-    For example:
-    8.8.8.8:53           # Can be used with allow_tcp_out to allow port 53 to google DNS
-    80,443               # Can be used with allow_tcp_in to allow web access to a web server
-    80->8080,443->8443   # Can be used with allow_tcp_in to translate incoming port 80 traffic to an internal port 8080
-                         # AND 443 to 8443
-
-    Returns a list of dicts with the following possible keys:
-    - port
-    - host
-    - secondary_port
-    """
-
-    results = []
-    for setting in settings.split(","):
-        result = {}
-
-        host_and_ip = setting.split(":")
-        #Port is first part assuming if no IP specified
-        port_section = host_and_ip[0]
-        if len(host_and_ip) == 2:
-            #A host name/network/IP was specified
-            result['host'] = host_and_ip[0]
-            port_section = host_and_ip[1]
-        elif len(host_and_ip) > 2:
-            app.print_error("Unexpected number of colon separated sections in setting: %s, skipping!" % setting)
-            continue
-
-        ports = port_section.split("->")
-
-        result['port'] = ports[0]
-
-        if len(ports) == 2:
-            result['secondary_port'] = ports[1]
-        elif len(ports) > 2:
-            app.print_error("Unexpected number of \"->\" separated port sections in setting: %s, skipping!" % setting)
-            continue
-
-        results.append(result)
-
-    return results
 
 
 # TODO: Set a good name and move to a better place
