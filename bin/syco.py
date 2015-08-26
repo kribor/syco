@@ -104,7 +104,7 @@ class Commands:
         self.commands[self.current_type].func_list[name] = func
         self.commands[self.current_type].arguments_list[name] = arguments.strip("[]")
         self.commands[self.current_type].password_list[name] = password_list
-        self.commands[self.current_type].firewall_rules[name] = firewall_rules
+        self.commands[self.current_type].firewall_rules[name] = firewall_rules if firewall_rules else []
         if self.commands[self.current_type].arguments_list[name]:
             self.commands[self.current_type].arguments_list[name] = "{" + \
                 self.commands[self.current_type].arguments_list[name] + "}"
@@ -124,6 +124,17 @@ class Commands:
             self.commands["public"].func_list[command](args)
         elif command in self.commands["private"].name_list:
             self.commands["private"].func_list[command](args)
+        else:
+            app.parser.error('Unknown command %s' % command)
+
+    def get_command_firewall_rules(self, command):
+        """
+        Get a list of all firewall rules registered with this command
+        """
+        if command in self.commands["public"].name_list:
+            return self.commands["public"].firewall_rules[command]
+        elif command in self.commands["private"].name_list:
+            return self.commands["private"].firewall_rules[command]
         else:
             app.parser.error('Unknown command %s' % command)
 

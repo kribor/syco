@@ -31,6 +31,7 @@ from general import shell_run
 import iptables
 import version
 import installOpenLdap
+from iptables import *
 
 # The version of this module, used to prevent the same script version to be
 # executed more then once on the same host.
@@ -38,7 +39,9 @@ SCRIPT_VERSION = 2
 
 
 def build_commands(commands):
-    commands.add("install-sssd-client", install_sssd, help="Install sssd (ldap client).")
+    commands.add("install-sssd-client", install_sssd, help="Install sssd (ldap client).",
+                 firewall_rules=[OutboundFirewallRule(service="ldap", ports="636",
+                                                      dst=config.general.get_ldap_server_ip())])
     commands.add("uninstall-sssd-client", uninstall_sssd, help="Uninstall sssd.")
 
 
@@ -57,8 +60,6 @@ def install_sssd(args):
     install_packages()
 
     installOpenLdap.setup_hosts()
-    iptables.add_ldap_chain()
-    iptables.save()
 
     ip = config.general.get_ldap_server_ip()
     general.wait_for_server_to_start(ip, "636")
@@ -264,3 +265,4 @@ def configure_sudo(augeas):
 
 # Test if sudo is using LDAP.
 # sudo -l
+

@@ -6,6 +6,7 @@ READ MORE
 http://openvas.org
 
 '''
+from iptables import InboundFirewallRule, OutboundFirewallRule
 
 __author__ = "daniel.lindh@cybercow.se, anders@televerket.net"
 __copyright__ = "Copyright 2012, The System Console project"
@@ -34,7 +35,8 @@ import version
 SCRIPT_VERSION = 1
 
 def build_commands(commands):
-    commands.add("install-openvas",   install_openvas,   help="Install OpenVAS.")
+    commands.add("install-openvas",   install_openvas,   help="Install OpenVAS.",
+                 firewall_rules=get_openvas_firewall_rules())
     commands.add("uninstall-openvas", uninstall_openvas, help="Uninstall NMAP.")
 
 
@@ -49,9 +51,6 @@ def install_openvas(args):
 
     _install_packages()
     _disable_selinux()
-
-    iptables.add_openvas_chain()
-    iptables.save()
 
     #
     app.print_verbose("Get OpenVAS nvt.")
@@ -174,3 +173,10 @@ def uninstall_openvas(args):
     app.print_verbose("Tell syco openvas is uninstalled.")
     version_obj = version.Version("InstallOpenVAS", SCRIPT_VERSION)
     version_obj.mark_uninstalled()
+
+def get_openvas_firewall_rules():
+
+    rules = [
+        InboundFirewallRule(service="openvas", ports="9392"),
+        OutboundFirewallRule(service="openvas", dst="local-nets")
+    ]
