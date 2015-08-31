@@ -28,7 +28,6 @@ from general import x
 import app
 import config
 import general
-import iptables
 import version
 from iptables import InboundFirewallRule
 from iptables import OutboundFirewallRule

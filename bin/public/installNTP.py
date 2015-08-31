@@ -32,7 +32,6 @@ import os
 import app
 import config
 import general
-import iptables
 import net
 import version
 

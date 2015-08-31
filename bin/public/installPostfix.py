@@ -30,7 +30,6 @@ import app
 import config
 import general
 import install
-import iptables
 import net
 import scopen
 import version

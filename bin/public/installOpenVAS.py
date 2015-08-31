@@ -26,7 +26,6 @@ import install
 import app
 import config
 import general
-import iptables
 import version
 
 
@@ -157,11 +156,6 @@ def uninstall_openvas(args):
     x("yum -y remove openvas-*")
     x("rm -rf /var/lib/openvas")
     x("rm /etc/yum.repos.d/atomic.repo")
-
-    #
-    app.print_verbose("Remove iptables rules.")
-    iptables.del_openvas_chain()
-    iptables.save()
 
     #
     app.print_verbose("Enabling SELINUX.")

@@ -40,7 +40,6 @@ import config
 import general
 from general import x
 import version
-import iptables
 
 from iptables import InboundFirewallRule
 
@@ -83,8 +82,6 @@ def install_httpd(args):
     _update_modsec_rules()
     _enable_se_linux()
 
-    iptables.add_httpd_chain()
-    iptables.save()
     set_file_permissions()
     x("/etc/init.d/httpd start")
 
@@ -103,9 +100,6 @@ def uninstall_httpd(args):
         x("rm -rf /etc/httpd/")
         x("rm -rf /var/www/html")
         x("rm -r /usr/lib64/httpd/modules/mod_security2.so")
-
-    iptables.del_httpd_chain()
-    iptables.save()
 
     version_obj = version.Version("Installhttpd", SCRIPT_VERSION)
     version_obj.mark_uninstalled()

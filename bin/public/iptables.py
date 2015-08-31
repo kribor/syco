@@ -272,11 +272,19 @@ def setup_icmp_chains():
 def setup_multicast_chains():
     app.print_verbose("Create Multicast chain.")
     iptables("-N multicast_packets")
-    iptables("-A multicast_packets -s 224.0.0.0/4 -j DROP")
-    iptables("-A multicast_packets -d 224.0.0.0/4 -j DROP")
-    iptables("-A multicast_packets -s 0.0.0.0/8 -j DROP")
-    iptables("-A multicast_packets -d 0.0.0.0/8 -j DROP")
     iptables("-A OUTPUT -p ALL -j multicast_packets")
+
+    multicast_configs = _get_dynamic_firewall_multicast_configs(net.get_hostname())
+    if multicast_configs:
+        for multicast_config in multicast_configs:
+            for rule in multicast_config.get_rules():
+                iptables(rule.get_row())
+    else:
+        #Deny multicast
+        iptables("-A multicast_packets -s 224.0.0.0/4 -j DROP")
+        iptables("-A multicast_packets -d 224.0.0.0/4 -j DROP")
+        iptables("-A multicast_packets -s 0.0.0.0/8 -j DROP")
+        iptables("-A multicast_packets -d 0.0.0.0/8 -j DROP")
 
 
 def add_general_rules():
@@ -350,6 +358,17 @@ def _get_dynamic_firewall_modules(host_name):
 
     return modules
 
+
+def _get_dynamic_firewall_multicast_configs(host_name):
+
+    fw_config = _get_dynamic_firewall_config(host_name)
+    multicasts = []
+
+    for row in fw_config:
+        if isinstance(row, MulticastConfig):
+            multicasts.append(row)
+
+    return multicasts
 
 def _get_dynamic_firewall_config(host_name):
 
@@ -572,6 +591,30 @@ class FirewallModule(object):
 
     def __init__(self, module_name):
         self.module_name = module_name
+
+
+class MulticastConfig(object):
+
+    net = None
+    protocols = None
+
+    def __init__(self, net, protocols):
+        if not isinstance(net, basestring):
+            raise ValueError("Expected Multicast network")
+        self.net = net
+
+        self.protocols = protocols
+
+    def get_rules(self):
+        rules = [
+            RawFirewallRule(service="syco", raw="-A multicast_packets -d %s -j ACCEPT" % self.net),
+            RawFirewallRule(service="syco", raw="-A multicast_packets -s %s -j ACCEPT" % self.net)
+        ]
+        if self.protocols:
+            for proto in self.protocols:
+                rules.append(RawFirewallRule(service="syco", raw="-A syco_input -p %s -j ACCEPT" % proto))
+                rules.append(RawFirewallRule(service="syco", raw="-A syco_output -p %s -j ACCEPT" % proto))
+        return rules
 
 
 class FirewallRule(object):
