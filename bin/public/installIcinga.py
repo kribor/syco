@@ -46,8 +46,10 @@ SCRIPT_VERSION = 1
 def build_commands(commands):
     commands.add("install-icinga", install_icinga,
                  help="Installs a icinga poller and web-interface for monitoring of remote hosts.",
+                 password_list=[["ldap", "sssd"]],
                  firewall_config=get_icinga_fw_config())
-    commands.add("reload-icinga", reload_icinga, help="Reloads the icinga object structure.")
+    commands.add("reload-icinga", reload_icinga, help="Reloads the icinga object structure.",
+                 password_list=[["ldap", "sssd"]])
 
 
 def install_icinga(args):
@@ -80,9 +82,6 @@ def _install_icinga(args):
     and more functionality.
 
     '''
-    # Initialize all used passwords.
-    app.init_mysql_passwords()
-    app.get_ldap_sssd_password()
 
     # Install icinga poller, web-interface and graping.
     icinga_db_password = _install_icinga_core(args)
@@ -151,10 +150,6 @@ def _install_icinga_web(icinga_db_pass):
     x("/sbin/chkconfig --level 3 mysqld on")
     x("/sbin/chkconfig --level 3 ido2db on")
 
-    # Harden with iptables-chain
-    iptables.add_httpd_chain()
-    iptables.save()
-
 
 def _configure_icinga_web(icinga_db_pass, web_sqlpassword):
     '''
@@ -187,7 +182,7 @@ def _configure_icinga_web(icinga_db_pass, web_sqlpassword):
     x("cp -p {0}icinga/icinga-web.conf /etc/httpd/conf.d/".format(constant.SYCO_VAR_PATH))
     htconf = scopen.scOpen("/etc/httpd/conf.d/icinga-web.conf ")
     htconf.replace("${BIND_DN}","cn=sssd,%s" % config.general.get_ldap_dn() )
-    htconf.replace("${BIND_PASSWORD}","%s" % app.get_ldap_sssd_password() )
+    htconf.replace("${BIND_PASSWORD}","%s" % app.get_custom_password("ldap", "sssd"))
     htconf.replace("${LDAP_URL}","ldaps://%s:636/%s?uid" % (config.general.get_ldap_hostname(),config.general.get_ldap_dn()) )
     x("/usr/bin/icinga-web-clearcache")
 
@@ -201,9 +196,6 @@ def _reload_icinga(args, reload=True):
     Re-probes the network for running services and updates the icinga object structure.
 
     '''
-    # Initialize all used passwords.
-    app.init_mysql_passwords()
-    app.get_ldap_sssd_password()
 
     hostList = _get_host_list()
     _append_services_to_hostlist(hostList)
@@ -252,7 +244,7 @@ def _install_pnp4nagios():
     x("cp -p {0}icinga/pnp4nagios.conf /etc/httpd/conf.d/".format(constant.SYCO_VAR_PATH))
     htconf = scopen.scOpen("/etc/httpd/conf.d/pnp4nagios.conf")
     htconf.replace("${BIND_DN}","cn=sssd,%s" % config.general.get_ldap_dn() )
-    htconf.replace("${BIND_PASSWORD}","%s" % app.get_ldap_sssd_password() )
+    htconf.replace("${BIND_PASSWORD}","%s" % app.get_custom_password("ldap", "sssd"))
     htconf.replace("${LDAP_URL}","ldaps://%s:636/%s?uid" % (config.general.get_ldap_hostname(),config.general.get_ldap_dn()) )
 
     # Restart everything

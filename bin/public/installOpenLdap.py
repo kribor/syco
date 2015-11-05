@@ -42,6 +42,7 @@ SCRIPT_VERSION = 2
 
 def build_commands(commands):
     commands.add("install-openldap", install_openldap, help="Install openldap.",
+                 password_list=[["ldap", "admin"], ["ldap", "sssd"]],
                  firewall_config=[InboundFirewallRule(service="ldap", ports="636", dst="local-ips", src="local-nets")])
     commands.add("uninstall-openldap", uninstall_openldap, help="Uninstall openldap.")
 
@@ -118,8 +119,6 @@ def initialize_passwords():
 
     '''
     app.get_ca_password()
-    app.get_ldap_admin_password()
-    app.get_ldap_sssd_password()
 
 def enable_selinux():
     '''
@@ -150,7 +149,7 @@ def install_packages():
     # Set password for cn=config (it's secret)
     scOpen('/etc/openldap/slapd.d/cn\=config/olcDatabase\=\{0\}config.ldif').add(
         'olcRootPW: %(ldap_password)s' %
-        {'ldap_password': get_hashed_password(app.get_ldap_admin_password())}
+        {'ldap_password': get_hashed_password(app.get_custom_password("ldap", "admin"))}
     )
 
     # Autostart slapd after reboot.
@@ -236,7 +235,7 @@ olcAccess: {2}to dn.base="" by * none
 olcAccess: {3}to * by dn="cn=config" write by dn="cn=sssd,%(dn)s" read by self write by * none
 """ % {
     "dn": config.general.get_ldap_dn(),
-    "password": get_hashed_password(app.get_ldap_admin_password())
+    "password": get_hashed_password(app.get_custom_password("ldap", "admin"))
     }
 )
 
@@ -610,7 +609,7 @@ def ldapadd(user, value, uri="-H ldap:///"):
     x("ldapadd %s -x -D '%s' -w '%s' << EOF\n%s\nEOF\n\n" % (
         uri,
         user,
-        app.get_ldap_admin_password(),
+        app.get_custom_password("ldap", "admin"),
         value
     ))
 

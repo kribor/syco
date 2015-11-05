@@ -12,22 +12,21 @@ It is also dependent on the EPEL repo since Redis is not available on CentOS off
 
 __author__ = "David Skeppstedt"
 __copyright__ = "Copyright 2014, Fareoffice CRS AB"
-__maintainer__ = "David Skeppstedt"
+__maintainer__ = "Kristofer Borgstrom"
 __email__ = "davske@fareoffice.com"
-__credits__ = ["Daniel Lindh, Mattias Hemmingsson, Kristoffer Borgstrom"]
+__credits__ = ["Daniel Lindh, Mattias Hemmingsson, Kristofer Borgstrom, David Skeppstedt"]
 __license__ = "???"
-__version__ = "2.4.10"
+__version__ = "2.5.0"
 __status__ = "Production"
 
 import os
 from general import x, urlretrive
-import iptables
 import socket
-import install
 import app
 import password
 import version
 import scopen
+from iptables import InboundFirewallRule, OutboundFirewallRule
 
 script_version = 1
 
@@ -42,7 +41,9 @@ def build_commands(commands):
     Defines the commands that can be executed through the syco.py shell script.
     '''
 
-    commands.add("install-redis", install_redis, help="Install Redis on the server.")
+    commands.add("install-redis", install_redis, help="Install Redis on the server.",
+                 firewall_config=[InboundFirewallRule(service="redis", ports="6379", src="local-nets"),
+                                  OutboundFirewallRule(service="redis", ports="6379", dst="local-nets")])
     commands.add("uninstall-redis", uninstall_redis, help="Uninstall Redis from the server.")
 
 def install_redis(args):
@@ -58,7 +59,6 @@ def install_redis(args):
     # Installation fails using the install.package function, needs to debug further before adding again. Workaround with manual command.
     #install.package("tcl redis keepalived")
     x("yum install -y tcl redis keepalived")
-    _configure_iptables()
     _configure_keepalived()
     _configure_redis()
 
@@ -109,25 +109,6 @@ def _chkconfig(service,command):
     x("/sbin/chkconfig {0} {1}".format(service, command))
 
 
-def _configure_iptables(args):
-    '''
-    * Keepalived uses multicast and VRRP protocol to talk to the nodes and need to 
-        be opened. So first we remove the multicast blocks and then open them up.
-    * VRRP is known as Protocol 112 in iptables.
-    * Redis uses port 6379 and need to be opened.
-    '''
-
-    iptables.iptables("-A syco_input -p tcp -m multiport --dports 6379 -j allowed_tcp")
-    iptables.iptables("-A syco_output -p tcp -m multiport --dports 6379 -j allowed_tcp")
-    iptables.iptables("-D multicast_packets -s 224.0.0.0/4 -j DROP")
-    iptables.iptables("-D multicast_packets -d 224.0.0.0/4 -j DROP")
-    iptables.iptables("-A multicast_packets -d 224.0.0.0/8 -j ACCEPT")
-    iptables.iptables("-A multicast_packets -s 224.0.0.0/8 -j ACCEPT")
-    iptables.iptables("-A syco_input -p 112 -i eth1 -j ACCEPT")
-    iptables.iptables("-A syco_output -p 112 -o eth1 -j ACCEPT")
-    iptables.save()
-
-
 def uninstall_redis(args):
     '''
     Remove Redis from the server
@@ -146,16 +127,6 @@ def uninstall_redis(args):
     x("rm -rf {0}redis.conf".format(REDIS_CONF_DIR))
     x("rm -rf {0}redis.conf.rpmsave".format(REDIS_CONF_DIR))
     x("rm -rf {0}*".format(KEEPALIVED_CONF_DIR))
-
-    iptables.iptables("-D syco_input -p tcp -m multiport --dports 6379 -j allowed_tcp")
-    iptables.iptables("-D syco_output -p tcp -m multiport --dports 6379 -j allowed_tcp")
-    iptables.iptables("-D multicast_packets -d 224.0.0.0/8 -j ACCEPT")
-    iptables.iptables("-D multicast_packets -s 224.0.0.0/8 -j ACCEPT")
-    iptables.iptables("-D syco_input -p 112 -i eth1 -j ACCEPT")
-    iptables.iptables("-D syco_output -p 112 -o eth1 -j ACCEPT")
-    iptables.iptables("-A multicast_packets -s 224.0.0.0/4 -j DROP")
-    iptables.iptables("-A multicast_packets -d 224.0.0.0/4 -j DROP")
-    iptables.save()
 
 
 '''

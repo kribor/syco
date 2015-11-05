@@ -40,6 +40,7 @@ SCRIPT_VERSION = 2
 
 def build_commands(commands):
     commands.add("install-mysql",             install_mysql, "[server-id, innodb-buffer-pool-size]",
+                 password_list=[["mysql", "root"], ["mysql", "monitor"], ["mysql", "backup"], ["mysql", "replication"]],
                  help="Install mysql server on the current server.", firewall_config=get_mysql_firewall_rules())
     commands.add("uninstall-mysql",           uninstall_mysql,
                  help="Uninstall mysql server on the current server.")
@@ -63,9 +64,6 @@ def install_mysql(args):
 
     server_id=args[1]
     innodb_buffer_pool_size=args[2]
-
-    # Initialize all passwords used by the script
-    app.init_mysql_passwords()
 
     # Install the mysql-server packages.
     if not os.access("/usr/bin/mysqld_safe", os.W_OK|os.X_OK):
@@ -127,7 +125,7 @@ def install_mysql(args):
     mysql_exec(
         "GRANT REPLICATION CLIENT ON *.* " +
         "TO 'monitor'@'127.0.0.1' IDENTIFIED BY '%s'" % (
-            app.get_mysql_monitor_password()
+            app.get_custom_password("mysql", "monitor")
         )
     )
 
@@ -136,7 +134,7 @@ def install_mysql(args):
     mysql_exec(
         "GRANT RELOAD,SUPER,REPLICATION CLIENT ON *.* " +
         "TO 'backup'@'127.0.0.1' IDENTIFIED BY '%s'" % (
-            app.get_mysql_backup_password()
+            app.get_custom_password("mysql", "backup")
         )
     )
 
@@ -149,10 +147,10 @@ def install_mysql(args):
         "'root'@'localhost' IDENTIFIED BY '%s', "
         "'root'@'%s' IDENTIFIED BY '%s'"
         " WITH GRANT OPTION" % (
-           app.get_mysql_root_password(),
-           app.get_mysql_root_password(),
+           app.get_custom_password("mysql", "root"),
+           app.get_custom_password("mysql", "root"),
            current_host_config.get_front_ip(),
-           app.get_mysql_root_password()
+           app.get_custom_password("mysql", "root")
         )
     )
 
@@ -165,7 +163,7 @@ def install_mysql(args):
             "'root'@'%s' IDENTIFIED BY '%s'"
             " WITH GRANT OPTION" % (
                 repl_peer,
-                app.get_mysql_root_password()
+                app.get_custom_password("mysql", "replication")
             ),
             with_user=True
         )
@@ -258,7 +256,7 @@ def mysql_exec(command, with_user=False, host="127.0.0.1", escape=True):
         cmd+= "-h" + host + " "
 
     if with_user:
-        cmd+='-uroot -p"{0}" '.format(app.get_mysql_root_password())
+        cmd+='-uroot -p"{0}" '.format(app.get_custom_password("mysql", "root"))
 
     return x(cmd + '-e "{0}"'.format(command))
 

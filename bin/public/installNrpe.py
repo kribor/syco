@@ -35,6 +35,7 @@ SCRIPT_VERSION = 4
 def build_commands(commands):
     commands.add("install-nrpe-client", install_nrpe,
                  help="Installs NRPE daemon and nagios plugins for monitoring by remote server.",
+                 password_list=[["ldap", "sssd"], ["mysql", "monitor"]],
                  firewall_config=[InboundFirewallRule(service="nrpe", ports="5666",
                                                      src=config.general.get_monitor_server_ip())])
 
@@ -55,9 +56,6 @@ def _install_nrpe(args):
     safe but better than nothing. Also, argument parsing is _disabled_.
 
     """
-    # Initialize all used passwords at the beginning of the script.
-    app.get_ldap_sssd_password()
-    app.get_mysql_monitor_password()
 
     install.epel_repo()
 
@@ -104,9 +102,9 @@ def _install_nrpe_plugins():
 
     # Set the sssd password
     nrpe_config = scopen.scOpen("/etc/nagios/nrpe.d/common.cfg")
-    nrpe_config.replace("$(LDAPPASSWORD)", app.get_ldap_sssd_password())
+    nrpe_config.replace("$(LDAPPASSWORD)", app.get_custom_password("ldap", "sssd"))
     nrpe_config.replace("$(LDAPURL)", config.general.get_ldap_hostname())
-    nrpe_config.replace("$(SQLPASS)", app.get_mysql_monitor_password().replace("&","\&").replace("/","\/"))
+    nrpe_config.replace("$(SQLPASS)", app.get_custom_password("mysql", "monitor").replace("&","\&").replace("/","\/"))
 
     # Set name of main disk
     host_config = config.host(net.get_hostname())

@@ -22,14 +22,8 @@ __license__ = "???"
 __version__ = "1.0.0"
 __status__ = "Production"
 
-import app
-import config
-import general
 from augeas import Augeas
-from general import x
 from general import shell_run
-import iptables
-import version
 import installOpenLdap
 from iptables import *
 
@@ -40,6 +34,7 @@ SCRIPT_VERSION = 2
 
 def build_commands(commands):
     commands.add("install-sssd-client", install_sssd, help="Install sssd (ldap client).",
+                 password_list=[["ldap", "sssd"]],
                  firewall_config=[OutboundFirewallRule(service="ldap", ports="636",
                                                       dst=config.general.get_ldap_server_ip())])
     commands.add("uninstall-sssd-client", uninstall_sssd, help="Uninstall sssd.")
@@ -53,9 +48,6 @@ def install_sssd(args):
     app.print_verbose("Install sssd script-version: %d" % SCRIPT_VERSION)
     version_obj = version.Version("InstallSssd", SCRIPT_VERSION)
     version_obj.check_executed()
-
-    # Get all passwords from installation user at the start of the script.
-    app.get_ldap_sssd_password()
 
     install_packages()
 
@@ -178,7 +170,7 @@ def configure_sssd(augeas):
                             "cn=sssd," + config.general.get_ldap_dn())
     augeas.set_enhanced("/files/etc/sssd/sssd.conf/target[. = 'domain/default']/ldap_default_authtok_type", "password")
     augeas.set_enhanced("/files/etc/sssd/sssd.conf/target[. = 'domain/default']/ldap_default_authtok",
-                            app.get_ldap_sssd_password())
+                            app.get_custom_password("ldap", "sssd"))
 
     #Enable caching of sudo rules
     augeas.set_enhanced("/files/etc/sssd/sssd.conf/target[. = 'domain/default']/sudo_provider", "ldap")
@@ -228,7 +220,7 @@ def configure_sudo(augeas):
     augeas.set_enhanced("/files/etc/ldap.conf/tls_key", "/etc/openldap/cacerts/client.pem")
     augeas.set_enhanced("/files/etc/ldap.conf/sudoers_base", "ou=SUDOers,dc=fareoffice,dc=com")
     augeas.set_enhanced("/files/etc/ldap.conf/binddn", "cn=sssd,%s" % config.general.get_ldap_dn())
-    augeas.set_enhanced("/files/etc/ldap.conf/bindpw", app.get_ldap_sssd_password())
+    augeas.set_enhanced("/files/etc/ldap.conf/bindpw", app.get_custom_password("ldap", "sssd"))
 
     # SUDO now uses it's own ldap config file.
     x("cp /etc/ldap.conf /etc/sudo-ldap.conf")

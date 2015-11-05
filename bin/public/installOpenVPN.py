@@ -97,7 +97,7 @@ def install_openvpn_server(args):
 
 
     if enable_ldap:
-        app.get_ldap_sssd_password()
+        app.get_custom_password("ldap", "sssd")
         x("yum -y install openvpn-auth-ldap")
 
     if not os.access("/etc/openvpn/easy-rsa", os.F_OK):
@@ -164,9 +164,6 @@ def install_openvpn_server(args):
 
     if enable_ldap:
         _setup_ldap()
-
-    iptables.add_openvpn_chain()
-    iptables.save()
 
     x("/etc/init.d/openvpn restart")
     x("/sbin/chkconfig openvpn on")
@@ -254,7 +251,7 @@ def _setup_ldap():
     '''
     ldapconf = scOpen("/etc/openvpn/auth/ldap.conf")
     ldapconf.replace("^\\s*URL\s*.*","\\tURL\\tldaps://%s" % config.general.get_ldap_hostname())
-    ldapconf.replace("^\s*# Password\s*.*","\\tPassword\\t%s" % app.get_ldap_sssd_password())
+    ldapconf.replace("^\s*# Password\s*.*","\\tPassword\\t%s" % app.get_custom_password("ldap", "sssd"))
     ldapconf.replace("^\s*# BindDN\s*.*","\\tBindDN\\tcn=sssd,%s" % config.general.get_ldap_dn())
     ldapconf.replace("^\s*TLSEnable\s*.*","\\t# TLSEnable\\t YES")
 

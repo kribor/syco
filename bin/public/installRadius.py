@@ -45,6 +45,7 @@ def build_commands(commands):
 
     '''
     commands.add("install-radius",   install_freeradius,   help="Install FreeRadius server on the current server.",
+                 password_list=[["ldap", "admin"]],
                  firewall_config=get_radius_server_firewall_rules())
     commands.add("uninstall-radius", uninstall_freeradius, help="Uninstall Freeradius server on the current server.")
 
@@ -57,9 +58,6 @@ def install_freeradius(args):
     app.print_verbose("Install FreeRadius version: %d" % SCRIPT_VERSION)
     version_obj = version.Version("InstallFreeRadius", SCRIPT_VERSION)
     version_obj.check_executed()
-
-    # Initialize all passwords used by the script
-    app.get_ldap_admin_password()
 
     _install_packages()
 
@@ -107,7 +105,7 @@ def _configure_ldap():
     ldapconf.replace(
         '\\t#password = .*',
         '\\tpassword = "{0}"'.format(
-            re.escape(app.get_ldap_admin_password())
+            re.escape(app.get_custom_password("ldap", "admin"))
         )
     )
     ldapconf.replace(

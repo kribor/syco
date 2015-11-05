@@ -52,7 +52,7 @@ def remote_install_syco(args):
 def _remote_install(args, enable_commands_):
     # Ask the user for all passwords that might be used in the remote install
     # so the installation can go on headless.
-    app.init_all_passwords()
+    app.init_core_passwords()
 
     # Start installation timer.
     timer = time.time()
@@ -78,7 +78,7 @@ def install_local(args):
     '''
     # Ask the user for all passwords that might be used in the remote install
     # so the installation can go on headless.
-    app.init_all_passwords()
+    app.init_core_passwords()
 
     hostname = ""
     if len(args) > 1:
