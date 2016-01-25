@@ -102,7 +102,8 @@ from general import x
 
 def build_commands(commands):
   commands.add("install-backup",       install_backup,       help="Install rsnapshot based backup server.")
-  commands.add("install-mysql-backup", install_mysql_backup, help="Install files to make mysql backup.")
+  commands.add("install-mysql-backup", install_mysql_backup, help="Install files to make mysql backup.",
+               password_list=[["mysql", "backup"]])
   commands.add("uninstall-backup",     uninstall_backup,     help="Uninstall rsnapshot based backup server.")
   commands.add("tar-backup",           tar_backup,           help="Tar the monthly copy of the backup.")
 
@@ -240,9 +241,9 @@ def install_mysql_backup(args):
   fn = "/root/.my.cnf"
   contents = """
 [client]
-user=root
+user=backup
 password="%s"
-""" % (app.get_mysql_root_password())
+""" % (app.get_custom_password("mysql", "backup"))
   scOpen(fn).add(contents)
   x("chown root:root %s" % fn)
   x("chmod 600 %s" % fn)

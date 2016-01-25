@@ -29,7 +29,6 @@ import config
 import general
 import install
 import installHttpd
-import iptables
 import version
 
 # The version of this module, used to prevent the same script version to be
@@ -47,7 +46,8 @@ def build_commands(commands):
     Defines the commands that can be executed through the syco.py shell script.
 
     '''
-    commands.add("install-loganalyzer",   install_loganalyzer,   help="Install Log managemenet tools.")
+    commands.add("install-loganalyzer",   install_loganalyzer,   help="Install Log managemenet tools.",
+                 password_list=[["ldap", "sssd"]])
     commands.add("uninstall-loganalyzer", uninstall_loganalyzer, help="Uninstall Log managemenet tools.")
 
 
@@ -59,9 +59,6 @@ def install_loganalyzer(args):
     app.print_verbose("Install loganalyzer version: %d" % SCRIPT_VERSION)
     version_obj = version.Version("InstallLoganalyzer", SCRIPT_VERSION)
     version_obj.check_executed()
-
-    # Initialize all passwords used by the script
-    app.init_mysql_passwords()
 
     _install_packages(args)
     _download_loganalyzer()
@@ -148,7 +145,7 @@ def _configure_apache():
     htconf.replace("${BIND_DN}","cn=sssd,{0}".format(
         config.general.get_ldap_dn()
     ))
-    htconf.replace("${BIND_PASSWORD}", app.get_ldap_sssd_password())
+    htconf.replace("${BIND_PASSWORD}", app.get_custom_password("ldap", "sssd"))
     htconf.replace("${LDAP_URL}", "ldaps://{0}:636/{1}?uid".format(
         config.general.get_ldap_hostname(), config.general.get_ldap_dn()
     ))

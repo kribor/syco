@@ -45,16 +45,14 @@ import installSssd
 SCRIPT_VERSION = 1
 
 def build_commands(commands):
-  commands.add("install-git-server",   install_git_server, help="Install git server")
+  commands.add("install-git-server",   install_git_server, help="Install git server",
+               password_list=[["ldap", "sssd"]])
 
 def install_git_server(args):
   app.print_verbose("Install Git-Server version: %d" % SCRIPT_VERSION)
   version_obj = version.Version("InstallGit", SCRIPT_VERSION)
   version_obj.check_executed()
 
-  # Get all passwords from installation user at the start of the script.
-  app.get_ldap_sssd_password()
-  
   x("yum -y install git")
 
   setup_git_user()
@@ -204,7 +202,7 @@ def _setup_ldap_auth():
   '''
   fn = "/etc/httpd/conf.d/git.conf"
   scOpen(fn).replace("${AUTHLDAPBINDDN}", "cn=sssd," + config.general.get_ldap_dn())
-  scOpen(fn).replace("${AUTHLDAPBINDPASSWORD}", app.get_ldap_sssd_password())
+  scOpen(fn).replace("${AUTHLDAPBINDPASSWORD}", app.get_custom_password("ldap", "sssd"))
 
   ldapurl = "ldaps://%s:636/ou=people,%s?uid" % (
     config.general.get_ldap_hostname(),

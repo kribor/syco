@@ -162,6 +162,13 @@ class PasswordStore:
 
         return user_password
 
+    def get_all_passwords(self):
+        """
+        Get all syco-managed passwords.
+        """
+        passwords = self._get_all_from_file()
+
+
     def get_password_from_user(self, password_caption="Please enter a password:", verify_password=True):
         """
         Ask the user for a password on stdin, and validate it's strength.
@@ -234,6 +241,26 @@ class PasswordStore:
             return config.get(section, option)
         else:
             return ""
+
+    def _get_all_from_file(self):
+        """
+        Get all passwords from file
+
+        """
+        config = self._build_config_parser()
+
+        all_passwords = {}
+
+        for section in config.sections():
+            for option in config.options(section):
+                if not all_passwords[section]:
+                    all_passwords[section] = {}
+
+                crypted_file_password = config.get(section, option)
+                all_passwords[section][option] = self.cipher.decrypt(base64.b64decode(crypted_file_password)).\
+                    rstrip(self.PADDING)
+
+        return all_passwords
 
     def _set_to_file(self, section, option, value):
         """

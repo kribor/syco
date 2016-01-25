@@ -78,7 +78,7 @@ def password_filename():
     filename = os.path.expanduser("~/.ldap.password")
     if not os.path.exists(filename):
         print_verbose("Create %s" % filename)
-        password = app.get_ldap_admin_password()
+        password = app.get_custom_password("ldap", "admin")
         open(filename, "w").write(password)
         x("chmod 400 %s" % filename)
 

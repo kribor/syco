@@ -9,27 +9,24 @@ This script is dependent on the following config files for this script to work.
 
 __author__ = "David Skeppstedt"
 __copyright__ = "Copyright 2014, Fareoffice CRS AB"
-__maintainer__ = "David Skeppstedt"
+__maintainer__ = "Kristofer Borgstrom"
 __email__ = "davske@fareoffice.com"
-__credits__ = ["Daniel Lindh, Mattias Hemmingsson, Kristoffer Borgstrom"]
+__credits__ = ["Daniel Lindh, Mattias Hemmingsson, Kristofer Borgstrom, David Skeppstedt"]
 __license__ = "???"
 __version__ = "1.5"
 __status__ = "Production"
 
 import os
-from general import x, urlretrive
-import ssh
+from general import x
 import config
-import iptables
 import socket
-import install
 import app
-import password
 import version
 import scopen
 import fcntl
 import struct
 import net
+from iptables import InboundFirewallRule, OutboundFirewallRule
 
 script_version = 1
 
@@ -39,7 +36,9 @@ def build_commands(commands):
     '''
     Defines the commands that can be executed through the syco.py shell script.
     '''
-    commands.add("install-squid", install_squid, help="Install Squid Caching Proxy on the server.")
+    commands.add("install-squid", install_squid, help="Install Squid Caching Proxy on the server.",
+                 firewall_config=[InboundFirewallRule(service="squid", ports="3128", src="local-nets"),
+                                  OutboundFirewallRule(service="squid", ports=["80", "443"])])
     commands.add("uninstall-squid", uninstall_squid, help="Uninstall Squid Caching Proxy from the server.")
 
 def _service(service,command):
@@ -59,7 +58,6 @@ def install_squid(args):
     os.chdir("/")
 
     x("yum install -y squid")
-    _configure_iptables()
     _configure_squid()
 
     version_obj.mark_executed()
@@ -86,15 +84,6 @@ def _configure_squid():
     _service("squid", "restart")
 
 
-def _configure_iptables():
-    '''
-    Accept TCP traffic on 3128 from localnets and allow output to anywhere on port 80 and 443
-
-    '''
-    iptables.iptables("-A syco_input -p tcp -m multiport --dports 3128 -j allowed_tcp")
-    iptables.iptables("-A syco_output -p tcp -m multiport --dports 80,443 -j allowed_tcp")
-    iptables.save()
-
 def get_ip_address(ifname):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     return socket.inet_ntoa(fcntl.ioctl(
@@ -115,10 +104,6 @@ def uninstall_squid(args=""):
 
     x("yum -y remove squid")
     x("rm -rf %s*" % (SQUID_CONF_DIR))
-    iptables.iptables("-D syco_input -p tcp -m multiport --dports 3128 -j allowed_tcp")
-    iptables.iptables("-D syco_output -p tcp -m multiport --dports 80,443 -j allowed_tcp")
-    iptables.save()
-
 
 '''
 End of Squid Caching Proxy installation script.
